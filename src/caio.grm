@@ -1,0 +1,272 @@
+%define parse.error verbose
+%{
+#include <string>
+#include <stdlib.h>
+#include <iostream>
+using namespace std;
+#include "caio/asttypes.h"
+using namespace ast;
+typedef Value<std::string> sVal;
+#include "domains.h"
+
+extern int yylineno;
+int yylex();
+string filename,filepath;
+void fromfile(FILE *f);
+void yyerror(const char *msg){
+  cout<<"Line "<<yylineno<<": "<<msg<<"\n";
+  exit(1);
+}
+void generate(const string &fn, const string &fp, Program);
+void switch_option(const string &o);
+int debug_flag=0;
+%}
+%union {
+  sVal sval;
+  List<std::string> slist;
+  Decl decl;
+  List<Decl> decls;
+  Lrule lrule;
+  List<Lrule> lrules;
+  Grule grule;
+  List<Grule> grules;
+  Node node;
+  Mrule mrule;
+  List<Mrule> mrules;
+  Vrule vrule;
+  List<Vrule> vrules;
+  Term term;
+  Laction laction;
+  Code code;
+  List<Code> codes;
+  Gaction gaction;
+  Gelem gelem;
+  List<Gelem> gelems;
+  Xrule xrule;
+  List<Xrule> xrules;
+  Symbol sym;
+  List<Symbol> syms;
+}
+%token SPLIT "%%" TYPE "%type" OPTION "%option" OPERATOR "%operator" CODE "%code" LCODE "%{"
+%token RETURN "return" RULE "rule" MATCH "match" VISIT "visit" VISITOR "visitor" YYTEXT "yytext"
+%token <sval> LEXEM ID TERMINAL SPACES REF CONST RE NUMBER
+%type <sval> type1 alist
+%type <sym> symbol
+%type <decls> decls
+%type <decl> decl
+%type <lrules> lrules
+%type <lrule> lrule
+%type <grules> grules
+%type <grule> grule
+%type <laction> lcode
+%type <codes> xcode optsubs
+%type <code> xelem
+%type <slist> statesopt ids idlist list lelem terms types oplist arglist
+%type <syms> symbols
+%type <term> term optterm
+%type <xrules> erule
+%type <xrule> xrule
+%type <gaction> rcode
+%type <gelems> elems
+%type <gelem> elem
+%type <mrules> mrules
+%type <mrule> mrule
+%type <vrules> vrules
+%type <vrule> vrule
+%type <node> node
+%%
+program : decls "%%" lrules "%%" grules optsubs { 
+                                              if(debug_flag) astprint(cout,prog($1,$3,$5,$6)); 
+                                              else generate(filename,filepath,prog($1,$3,$5,$6));
+                                           }
+        ;
+optsubs : { $$=nullptr; }
+        | "%%" xcode { $$=$2; }
+        ;
+decls : { $$=nullptr; }
+        | decls decl '\n' { $$=cons($1,$2); }
+        | decls '\n' { $$=$1; }
+        ;
+decl : "%type" '<' type1 '>' symbols { $$=decltypes($3,$5); }
+     | "%option" idlist {
+                          $$=option($2);
+                          for(auto o:$2)
+                            switch_option(o);
+                        }
+     | "%operator" oplist { $$=decloper($2); }
+     | LCODE xcode '}' { $$=declcode(nullptr,$2); }
+     | CODE ID LCODE xcode '}' { $$=declcode($2,$4); }
+     ;
+type1 : ID { $$=$1; }
+     | ID '?' { $$=$1+"?"s; }
+     | ID '<' ID '>' { $$=$1+"<"s+$3+">"s; }
+     | ID '*' { $$=$1+"*"s; }
+     | ID '<' ID '>' '*' { $$=$1+"<"s+$3+">*"s; }
+     ;
+types : type1 { $$=cons($1); }
+      | types ',' type1 { $$=cons($1,$3); }
+      ;
+oplist : '<' ID '>' terms { $$=cons($2,$4); }
+       | oplist '<' ID '>' terms { $$=cons($1,cons($3,$5)); }
+       ;
+terms : TERMINAL { $$=cons($1); }
+      | terms TERMINAL { $$=cons($1,$2); }
+      ;
+symbols : symbol { $$=cons($1); }
+        | symbols symbol { $$=cons($1,$2); }
+        ;
+
+symbol : TERMINAL { $$=terminal($1); }
+       | ID { $$=ident($1); }
+       | ID '(' ')' { $$=node($1,nullptr); }
+       | ID '(' types ')' { $$=node($1,$3); }
+       ;
+lrules : { $$=nullptr; }
+       | lrules lrule '\n' { $$=cons($1,$2); }
+       | lrules '\n' { $$=$1; }
+       ;
+lrule : statesopt RE lcode { $$=lexrule($1,$2,$3); }
+      ;
+statesopt : { $$=nullptr; }
+       | '<' ids '>' { $$=$2; }
+       | '<' '*' '>' { $$=cons("*"s); }
+       ;
+optterm : { $$=nullptr; }
+        | '<' term '>' { $$=$2; }
+        ;
+lcode : optterm { $$=lterm(sVal(nullptr),$1); }
+      | TERMINAL optterm  { $$=lterm($1,$2); }
+      | ';' { $$=lskip(); }
+      | '|' { $$=lnext(); }
+      | LCODE xcode '}' { $$=lcode($2); }
+      ;
+term : ID '(' arglist ')' { $$=tnode($1,$3); }
+     | ID '(' ')' { $$=tnode($1,nullptr); }
+     | CONST { $$=snode($1); }
+     | ID { $$=snode($1); }
+     | REF { $$=snode($1); }
+     ;
+arglist : alist { $$=cons($1); }
+        | arglist ',' alist { $$=cons($1,$3); }
+        ;
+alist : lelem { string s; for(auto x:$1) s+=x; $$=s; }
+     | alist lelem { string s; for(auto x:$2) s+=x; $$=s; $$=$1+s; }
+     ;
+
+grules : { $$=nullptr; }
+       | grules grule ';' { $$=cons($1,$2); }
+       ;
+grule : ID '=' erule { $$=grmrule($1,$3); }
+      ;
+erule : xrule { $$=cons($1); }
+      | erule '|' xrule { $$=cons($1,$3); }
+      ;
+xrule : elems rcode { $$=xrule($1,$2); }
+rcode : { $$=gempty(); }
+      | '<' term '>' { $$=gterm($2); }
+      | LCODE xcode '}' { $$=gcode($2); }
+      ;
+elems : { $$=nullptr; }
+      | elems elem { $$=cons($1,$2); }
+      ;
+elem : TERMINAL {$$=trmelem($1); }
+     | ID {$$=symelem($1); }
+     | '(' erule ')' { $$=varelem($2); }
+     | '(' erule ')' '*' { $$=repelem0($2); }
+     | '{' erule '}' { $$=repelem0($2); }
+     | '(' erule ')' '+' { $$=repelem1($2); }
+     | '{' erule '}' '-' { $$=repelem1($2); }
+     | '(' erule ')' '?' { $$=optelem($2); }
+     | '[' erule ']' { $$=optelem($2); }
+     ;
+xcode : { $$=nullptr; }
+      | xcode xelem { $$=cons($1,$2); }
+      ;
+xspaces : 
+        | xspaces SPACES
+        ;
+xelem : LEXEM { $$=lexem($1); }
+      | CONST { $$=lexem($1); }
+      | ID { $$=lexem($1); }
+      | REF { $$=lexem($1); }
+      | SPACES { $$=lexem($1); }
+      | '{' xcode '}' { $$=pcode($2); }
+      | "match" list '{' xspaces mrules '}' { $$=mcode($2,$5); }
+      | "visitor" ID '<' ID ',' ID '>' '{' xcode vrules '}' { $$=vcode($2,$4,$6,$9,$10); }
+      | "return" TERMINAL ';' { $$=rterm($2); }
+      ;
+mrules : mrule { $$=cons($1); }
+       | mrules mrule { $$=cons($1,$2); }
+       ;
+vrules : vrule { $$=cons($1); }
+       | vrules vrule { $$=cons($1,$2); }
+       ;
+mrule : "rule" node ':' xcode { $$=mrule($2,$4); }
+      ;
+vrule : "visit" node ':' xcode { $$=vrule($2,$4); }
+      ;
+list : lelem { $$=$1; }
+     | list lelem { $$=cons($1,$2); }
+     | list ',' { $$=cons($1,","s); }
+     ;
+lelem : LEXEM { $$=cons($1); }
+      | REF { $$=cons($1); }
+      | ID { $$=cons($1); }
+      | CONST { $$=cons($1); }
+      | '(' list ')' { $$=cons(cons("("s,$2),")"s); }
+      ;
+node : ID '(' ids ')' { $$=node2($1,$3); }
+     | ID '(' ')' { $$=node2($1,nullptr); }
+     | ID { $$=node1($1); }
+     ;
+ids : ID { $$=cons($1); }
+    | ids ',' ID { $$=cons($1,$3); }
+    ;
+idlist: ID { $$=cons($1); }
+    | idlist ID { $$=cons($1,$2); }
+    | ID '(' NUMBER ')' { $$=cons($1+$3); }
+    | idlist ID '(' NUMBER ')' { $$=cons($1,$2+$4); }
+    ;
+%%
+void usage_help()
+{
+  cout<<"Usage:\n\tcaio [option] filename.caio\n";
+  cout<<"Options:\n\t-d - debug, print AST only\n\t-opath - output path for files";
+}
+int main(int argc, char **argv)
+{ FILE *f;
+  string ext="";
+  size_t p=string::npos;
+  string inpfile;
+  while(argc>1)
+  {
+    if(argv[1]=="-d"s)
+      debug_flag=1;
+    else if(argv[1][0]=='-' && argv[1][1]=='o')
+      filepath=argv[1]+2;
+    else
+      inpfile=argv[1];
+    --argc;
+    ++argv;
+  }
+  if(inpfile.size()>0)
+  {
+    filename=inpfile;
+    p=filename.rfind('.');
+    if(p!=string::npos) ext=filename.substr(p);
+    filename=filename.substr(0,p);
+    p=filename.rfind('/');
+    if(p!=string::npos) filename=filename.substr(p);
+    p=filename.rfind('\\');
+    if(p!=string::npos) filename=filename.substr(p);
+  }
+  if(ext!=".caio"s || filename==""s || (f=fopen(inpfile.c_str(),"r"))==nullptr)
+  { usage_help();
+    return 0;
+  }
+  else
+  {
+    fromfile(f);
+    return yyparse();
+  }
+}
