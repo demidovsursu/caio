@@ -47,7 +47,7 @@ expr = expr '+' expr			<plus($1,$3)>
     | expr '*' expr 			<mult($1,$3)>
     | expr '/' expr 			<divide($1,$3)>
     | '-' expr 				<neg($2)>
-    | '(' expr ')' 			<$2>
+    | '(' expr ')'
     | ?number? 				<number($1)>
     | ?ident?				<ident($1)>
     ;
