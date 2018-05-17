@@ -1,11 +1,9 @@
 # caio
-Caio All in One, compiler-compiler, AST, tree buider &amp; tree walker, parse generator
+Caio is All in One, compiler-compiler, AST, tree buider &amp; tree walker, parse generator
 
 Caio translates the language definition to Flex, Bison and C++ files.
 
 I recommend using [RE/flex](https://www.genivia.com/doc/reflex/html/index.html) instead of Flex, since it has a better implementation RE.
-
-To traverse the AST, improved syntax forms from the [Memphis](http://memphis.compilertools.net/) were used. I wrote an analog of this program to use in my project.
 
 Below is the code of the mini-Basic interpreter.
 ```cpp
