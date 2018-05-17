@@ -321,9 +321,9 @@ void get_args()
       filepath=yyargv[i]+2;
   filename=yyinputfile;
   size_t p=filename.rfind('/');
-  if(p!=string::npos) filename=filename.substr(p);
+  if(p!=string::npos) filename=filename.substr(p+1);
   p=filename.rfind('\\');
-  if(p!=string::npos) filename=filename.substr(p);
+  if(p!=string::npos) filename=filename.substr(p+1);
   p=filename.rfind('.');
   if(p!=string::npos) filename=filename.substr(0,p);
 }
