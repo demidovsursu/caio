@@ -33,8 +33,7 @@ int find_id(string name);
 %% // rules for parse generator
 program = stmts 			%{ interp($1); }
  		  ;
-stmts = { stmt '\n'			<$1>
-        } 				<$1>
+stmts = { stmt '\n' }
 	;
 stmt = 					
   | ?ident? '=' expr 			<assign($1,$3)>
@@ -42,7 +41,7 @@ stmt =
   | "print" expr  			<print($2)> 
   | "while" expr '\n' stmts "wend" 	<whilestmt($2,$4)> 	
   | "if" expr ["then"] '\n'  stmts
-     [ "else" '\n' stmts		<$3>
+     [ "else" '\n' stmts
      ] "end" "if" 			<ifstmt($2,$5,$6)> 	
   ;
 expr = expr '+' expr			<plus($1,$3)>
