@@ -1,5 +1,5 @@
 # caio
-Caio is All in One, compiler-compiler, AST, tree buider &amp; tree walker, parse generator
+Caio is All in One, compiler-compiler, AST, tree buider &amp; tree walker, EBNF parser generator
 
 Caio translates the language definition to Flex, Bison and C++ files.
 
