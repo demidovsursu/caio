@@ -1,6 +1,5 @@
 #ifndef CAIO_H
 #define CAIO_H 1
-#define AST_LOCATIONS 1
 
 #ifndef ASTTYPES_H
 #define ASTTYPES_H 1
@@ -19,14 +18,15 @@ struct YYLTYPE {
   int last_line;
   int last_column;
 };
-#ifdef AST_LOCATIONS
-void init_yyloc(YYLTYPE &);
-#endif
 #define YYLTYPE_IS_DECLARED 1
 #define YYLTYPE_IS_TRIVIAL 1
 #endif
 
 namespace ast {
+
+template <typename T> inline void destroy(T& p) { }
+template <typename T> inline void destroy(T*& p) { if(p) delete p; p=nullptr; }
+
 template <typename T>
 class Value {
   int _assigned;
@@ -61,43 +61,8 @@ public:
   friend inline std::istream &operator>>(std::istream&s, Value<T> &v) { v._assigned=1; return s>>v._value; }
   friend inline std::ostream &operator<<(std::ostream&s, const Value<T> &v) { return s<<T(v); }
 };
-template <>
-class Value<std::string> {
-  size_t _len;
-  char *_str;
-  void check() const { if(!_str) throw std::logic_error("value isn't assigned"); }
-public:
-  Value()=default;
-  explicit Value(const char *s) { _len=strlen(s); _str=strdup(s); }
-  Value(const char *s, int l) { _len=l; _str=strdup(s); }
-  explicit Value(const std::string &s) { _len=s.length(); _str=strdup(s.c_str()); }
-  Value(std::nullptr_t) { _len=0; _str=nullptr; }
-  operator std::string() const { check(); return _str; }
-  operator bool() const{ return _str!=nullptr; }
-  bool operator!() const{ return !_str; }
-  const char *c_str() const { check(); return _str; }
-  size_t size() const { return _len; }
-  size_t length() const { return _len; }
-  char operator[](size_t i) const { check(); return _str[i]; }
-  char at(size_t i) const { check(); if(i>=_len) throw std::out_of_range("index out of range"); return _str[i]; }
-  std::string substr(size_t i, size_t n=std::string::npos) const { return ((std::string)_str).substr(i,n); }
-  Value<std::string> &operator=(const std::string& s) { _len=s.length(); _str=strdup(s.c_str()); return *this; }
-  Value<std::string> &operator=(const char *s) { _len=strlen(s); _str=strdup(s); return *this; }
-  Value<std::string> &operator=(std::nullptr_t) { _len=0; _str=nullptr; return *this; }
-  Value<std::string> &operator=(const Value<std::string>& v)=default;
-  Value<std::string> &operator+=(const std::string& s) { check(); (*this)=(std::string)_str+s; return *this; }
-  Value<std::string> &operator+=(const char *s) { check(); (*this)=(std::string)_str+(std::string)s; return *this; }
-  Value<std::string> &operator+=(char c) { check(); (*this)=(std::string)_str+std::string(1,c); return *this; }
-  friend inline std::istream &operator>>(std::istream&s, Value<std::string> &v) { std::string x; s>>x; v=x; return s; }
-  friend inline std::ostream &operator<<(std::ostream&s, const Value<std::string> &v) { v.check(); return s<<v._str; }
-};
 template <typename T>
 inline T operator+(const Value<T>& v1, const Value<T>& v2) { return T(v1)+T(v2); }
-template <typename T>
-inline T operator+(const T &v1, const Value<T>& v2) { return v1+T(v2); }
-template <typename T>
-inline T operator+(const Value<T>& v1, const T& v2) { return T(v1)+v2; }
-
 template <typename T>
 inline Value<T> operator-(Value<T> v1, const Value<T>& v2) { return v1-=v2; }
 template <typename T>
@@ -116,24 +81,12 @@ template <typename T>
 inline Value<T> operator|(Value<T> v1, const Value<T>& v2) { return v1|=v2; }
 template <typename T>
 inline Value<T> operator^(Value<T> v1, const Value<T>& v2) { return v1^=v2; }
-
 template <typename T>
 bool operator==(const Value<T> &v1, const Value<T>& v2) {
    if(!v1 && !v2) return 1;
    if(!v1 || !v2) return 0;
    return  T(v1)==T(v2); 
 }
-template <typename T>
-bool operator==(const T &v1, const Value<T>& v2) { 
-  if(!v2) return 0;
-  return v1==T(v2); 
-}
-template <typename T>
-bool operator==(const Value<T> &v1, const T& v2) {
-  if(!v1) return 0;
-  return T(v1)==v2; 
-}
-
 template <typename T>
 bool operator<(const Value<T> &v1, const Value<T>& v2) { 
   if(!v1 && !v2) return 0;
@@ -142,44 +95,13 @@ bool operator<(const Value<T> &v1, const Value<T>& v2) {
   return T(v1)<T(v2); 
 }
 template <typename T>
-bool operator<(const T &v1, const Value<T>& v2) { 
-  if(!v2) return 0;
-  return v1<T(v2); 
-}
-template <typename T>
-bool operator<(const Value<T> &v1, const T& v2) { 
-  if(!v1) return 1;
-  return T(v1)<v2; 
-}
-
-template <typename T>
 inline bool operator!=(const Value<T> &v1, const Value<T>& v2) { return !(v1==v2); }
-template <typename T>
-inline bool operator!=(const T &v1, const Value<T>& v2) { return !(v1==v2); }
-template <typename T>
-inline bool operator!=(const Value<T> &v1, const T& v2) { return !(v1==v2); }
-
 template <typename T>
 inline bool operator>(const Value<T> &v1, const Value<T>& v2) { return v2<v1; }
 template <typename T>
-inline bool operator>(const T &v1, const Value<T>& v2) { return v2<v1; }
-template <typename T>
-inline bool operator>(const Value<T> &v1, const T& v2) { return v2<v1; }
-
-template <typename T>
 inline bool operator<=(const Value<T> &v1, const Value<T>& v2) { return !(v2<v1); }
 template <typename T>
-inline bool operator<=(const T &v1, const Value<T>& v2) { return !(v2<v1); }
-template <typename T>
-inline bool operator<=(const Value<T> &v1, const T& v2) { return !(v2<v1); }
-
-template <typename T>
 inline bool operator>=(const Value<T> &v1, const Value<T>& v2) { return !(v1<v2); }
-template <typename T>
-inline bool operator>=(const T &v1, const Value<T>& v2) { return !(v1<v2); }
-template <typename T>
-inline bool operator>=(const Value<T> &v1, const T& v2) { return !(v1<v2); }
-
 template <typename T>
 Value<T> &operator++(Value<T> &v, int)
 { Value<T> v2(v);
@@ -192,6 +114,80 @@ Value<T> &operator--(Value<T> &v, int)
   --v;
   return v2;
 }
+
+template <>
+class Value<std::string> {
+  size_t _len;
+  char *_str;
+  void check() const { if(!_str) throw std::logic_error("value isn't assigned"); }
+  void del_ptr() { if(_str) free(_str); _str=nullptr; _len=0; }
+  void new_ptr(const char *s, size_t l) { _len=l; if(s) _str=strdup(s); else _str=nullptr; }
+public:
+  Value()=default;
+  explicit Value(const char *s) { new_ptr(s,strlen(s)); }
+  Value(const char *s, int l) { new_ptr(s,l); }
+  explicit Value(const std::string &s) { new_ptr(s.c_str(),s.length()); }
+  Value(std::nullptr_t) { new_ptr(nullptr,0); }
+  operator std::string() const { check(); return _str; }
+  operator bool() const{ return _str!=nullptr; }
+  bool operator!() const{ return !_str; }
+  const char *c_str() const { check(); return _str; }
+  size_t size() const { check(); return _len; }
+  size_t length() const { check(); return _len; }
+  char operator[](size_t i) const { check(); return _str[i]; }
+  char at(size_t i) const { check(); if(i>=_len) throw std::out_of_range("index out of range"); return _str[i]; }
+  std::string substr(size_t i, size_t n=std::string::npos) const { check(); return ((std::string)_str).substr(i,n); }
+  Value<std::string> &operator=(const std::string& s) { del_ptr(); new_ptr(s.c_str(),s.length()); return *this; }
+  Value<std::string> &operator=(const char *s) { del_ptr(); new_ptr(s,strlen(s)); return *this; }
+  Value<std::string> &operator=(std::nullptr_t) { del_ptr(); new_ptr(nullptr,0); return *this; }
+  Value<std::string> &operator=(const Value<std::string>& v)=default;
+  Value<std::string> &operator+=(const std::string& s) { check(); (*this)=(std::string)_str+s; return *this; }
+  Value<std::string> &operator+=(const char *s) { check(); (*this)=(std::string)_str+(std::string)s; return *this; }
+  Value<std::string> &operator+=(char c) { check(); (*this)=(std::string)_str+std::string(1,c); return *this; }
+  friend inline std::istream &operator>>(std::istream&s, Value<std::string> &v) { std::string x; s>>x; v=x; return s; }
+  friend inline std::ostream &operator<<(std::ostream&s, const Value<std::string> &v) { v.check(); return s<<v._str; }
+  friend inline void destroy(Value<std::string> &v) { v.del_ptr(); }
+};
+template <typename T>
+inline T operator+(const T &v1, const Value<T>& v2) { return v1+T(v2); }
+template <typename T>
+inline T operator+(const Value<T>& v1, const T& v2) { return T(v1)+v2; }
+template <typename T>
+bool operator==(const T &v1, const Value<T>& v2) { 
+  if(!v2) return 0;
+  return v1==T(v2); 
+}
+template <typename T>
+bool operator==(const Value<T> &v1, const T& v2) {
+  if(!v1) return 0;
+  return T(v1)==v2; 
+}
+template <typename T>
+bool operator<(const T &v1, const Value<T>& v2) { 
+  if(!v2) return 0;
+  return v1<T(v2); 
+}
+template <typename T>
+bool operator<(const Value<T> &v1, const T& v2) { 
+  if(!v1) return 1;
+  return T(v1)<v2; 
+}
+template <typename T>
+inline bool operator!=(const T &v1, const Value<T>& v2) { return !(v1==v2); }
+template <typename T>
+inline bool operator!=(const Value<T> &v1, const T& v2) { return !(v1==v2); }
+template <typename T>
+inline bool operator>(const T &v1, const Value<T>& v2) { return v2<v1; }
+template <typename T>
+inline bool operator>(const Value<T> &v1, const T& v2) { return v2<v1; }
+template <typename T>
+inline bool operator<=(const T &v1, const Value<T>& v2) { return !(v2<v1); }
+template <typename T>
+inline bool operator<=(const Value<T> &v1, const T& v2) { return !(v2<v1); }
+template <typename T>
+inline bool operator>=(const T &v1, const Value<T>& v2) { return !(v1<v2); }
+template <typename T>
+inline bool operator>=(const Value<T> &v1, const T& v2) { return !(v1<v2); }
 
 template <typename T> class List;
 template <typename T> List<T> cons(const T& p);
@@ -230,11 +226,11 @@ public:
   friend List<T> cons<T>(const T& p);
   friend List<T> cons<T>(List<T> l, const T& p);
   friend List<T> cons<T>(const T& p, List<T> l);
-  
+
   friend List<T> cons<T>(const Value<T> &p);
   friend List<T> cons<T>(List<T> l, const Value<T> &p);
   friend List<T> cons<T>(const Value<T> & p, List<T> l);
-  
+
   template <typename Z> friend  List<Z*> cons(Z *p);
   template <typename Z> friend List<Z*> cons(List<Z*> l, Z *p);
   template <typename Z> friend List<Z*> cons(Z* p, List<Z*> l);
@@ -247,6 +243,12 @@ public:
   operator bool() const { return first!=nullptr; }
   bool operator!() const { return first==nullptr; }
 };
+template <typename T> 
+void destroy(List<T> &l) {  
+  for(auto &x:l)
+    destroy(x);
+  l=nullptr;
+}
 template <typename T>
 List<T>::List(std::initializer_list<T> v)
 { first=nullptr;
@@ -303,6 +305,7 @@ inline List<T> cons(List<T> l)
 {
   return l;
 }
+
 template <typename T>
 List<T> cons(const Value<T> & p)
 { List<T> r(nullptr);
@@ -409,101 +412,77 @@ inline List<T> operator++(List<T> &l, int)
   return r;
 }
 
+extern YYLTYPE yylloc;
+void init_yyloc(YYLTYPE &);
+void set_yyloc(const YYLTYPE&);
+void set_yyloc(int, int);
+
 #ifndef AST_BASE_DOMAIN
 #define AST_BASE_DOMAIN 1
 struct _domain {
-#ifdef AST_LOCATIONS
+
   YYLTYPE yyloc;
   _domain() { init_yyloc(yyloc); }
-#endif
+
   virtual ~_domain(){}
 };
 #endif
 }
 #endif
-using namespace ast;
 namespace ast {
-struct Code_visitor;
 struct Code_domain : _domain {
-	virtual void accept(Code_visitor*, void*)=0;
 };
 typedef Code_domain *Code;
 int astprint(std::ostream&, Code, int=0, const char* =nullptr);
-struct Decl_visitor;
 struct Decl_domain : _domain {
-	virtual void accept(Decl_visitor*, void*)=0;
 };
 typedef Decl_domain *Decl;
 int astprint(std::ostream&, Decl, int=0, const char* =nullptr);
-struct Gaction_visitor;
 struct Gaction_domain : _domain {
-	virtual void accept(Gaction_visitor*, void*)=0;
 };
 typedef Gaction_domain *Gaction;
 int astprint(std::ostream&, Gaction, int=0, const char* =nullptr);
-struct Gelem_visitor;
 struct Gelem_domain : _domain {
-	virtual void accept(Gelem_visitor*, void*)=0;
 };
 typedef Gelem_domain *Gelem;
 int astprint(std::ostream&, Gelem, int=0, const char* =nullptr);
-struct Grule_visitor;
 struct Grule_domain : _domain {
-	virtual void accept(Grule_visitor*, void*)=0;
 };
 typedef Grule_domain *Grule;
 int astprint(std::ostream&, Grule, int=0, const char* =nullptr);
-struct Laction_visitor;
 struct Laction_domain : _domain {
-	virtual void accept(Laction_visitor*, void*)=0;
 };
 typedef Laction_domain *Laction;
 int astprint(std::ostream&, Laction, int=0, const char* =nullptr);
-struct Lrule_visitor;
 struct Lrule_domain : _domain {
-	virtual void accept(Lrule_visitor*, void*)=0;
 };
 typedef Lrule_domain *Lrule;
 int astprint(std::ostream&, Lrule, int=0, const char* =nullptr);
-struct Mrule_visitor;
 struct Mrule_domain : _domain {
-	virtual void accept(Mrule_visitor*, void*)=0;
 };
 typedef Mrule_domain *Mrule;
 int astprint(std::ostream&, Mrule, int=0, const char* =nullptr);
-struct Node_visitor;
 struct Node_domain : _domain {
-	virtual void accept(Node_visitor*, void*)=0;
 };
 typedef Node_domain *Node;
 int astprint(std::ostream&, Node, int=0, const char* =nullptr);
-struct Program_visitor;
 struct Program_domain : _domain {
-	virtual void accept(Program_visitor*, void*)=0;
 };
 typedef Program_domain *Program;
 int astprint(std::ostream&, Program, int=0, const char* =nullptr);
-struct Symbol_visitor;
 struct Symbol_domain : _domain {
-	virtual void accept(Symbol_visitor*, void*)=0;
 };
 typedef Symbol_domain *Symbol;
 int astprint(std::ostream&, Symbol, int=0, const char* =nullptr);
-struct Term_visitor;
 struct Term_domain : _domain {
-	virtual void accept(Term_visitor*, void*)=0;
 };
 typedef Term_domain *Term;
 int astprint(std::ostream&, Term, int=0, const char* =nullptr);
-struct Vrule_visitor;
 struct Vrule_domain : _domain {
-	virtual void accept(Vrule_visitor*, void*)=0;
 };
 typedef Vrule_domain *Vrule;
 int astprint(std::ostream&, Vrule, int=0, const char* =nullptr);
-struct Xrule_visitor;
 struct Xrule_domain : _domain {
-	virtual void accept(Xrule_visitor*, void*)=0;
 };
 typedef Xrule_domain *Xrule;
 int astprint(std::ostream&, Xrule, int=0, const char* =nullptr);
@@ -511,119 +490,161 @@ struct declcode_node : Decl_domain {
 	ast::Value<std::string> f1_;
 	List<Code> f2_;
 	declcode_node(ast::Value<std::string> a1, List<Code> a2):f1_(a1), f2_(a2){}
-	void accept(Decl_visitor*, void*);
+	~declcode_node() {
+	  destroy(f1_);
+	  destroy(f2_);
+	}
 };
 struct decloper_node : Decl_domain {
 	List<std::string> f1_;
 	decloper_node(List<std::string> a1):f1_(a1){}
-	void accept(Decl_visitor*, void*);
+	~decloper_node() {
+	  destroy(f1_);
+	}
 };
 struct declre_node : Decl_domain {
 	std::string f1_;
 	std::string f2_;
 	declre_node(const std::string& a1, const std::string& a2):f1_(a1), f2_(a2){}
-	void accept(Decl_visitor*, void*);
+	~declre_node() {
+	}
 };
 struct decltypes_node : Decl_domain {
 	std::string f1_;
 	List<Symbol> f2_;
 	decltypes_node(const std::string& a1, List<Symbol> a2):f1_(a1), f2_(a2){}
-	void accept(Decl_visitor*, void*);
+	~decltypes_node() {
+	  destroy(f2_);
+	}
 };
 struct gcode_node : Gaction_domain {
 	List<Code> f1_;
 	gcode_node(List<Code> a1):f1_(a1){}
-	void accept(Gaction_visitor*, void*);
+	~gcode_node() {
+	  destroy(f1_);
+	}
 };
 struct gempty_node : Gaction_domain {
 	gempty_node(){}
-	void accept(Gaction_visitor*, void*);
+	~gempty_node() {
+	}
 };
 struct grmrule_node : Grule_domain {
 	std::string f1_;
 	List<Xrule> f2_;
 	grmrule_node(const std::string& a1, List<Xrule> a2):f1_(a1), f2_(a2){}
-	void accept(Grule_visitor*, void*);
+	~grmrule_node() {
+	  destroy(f2_);
+	}
 };
 struct gterm_node : Gaction_domain {
 	Term f1_;
 	gterm_node(Term a1):f1_(a1){}
-	void accept(Gaction_visitor*, void*);
+	~gterm_node() {
+	  destroy(f1_);
+	}
 };
 struct ident_node : Symbol_domain {
 	std::string f1_;
 	ident_node(const std::string& a1):f1_(a1){}
-	void accept(Symbol_visitor*, void*);
+	~ident_node() {
+	}
 };
 struct lcode_node : Laction_domain {
 	List<Code> f1_;
 	lcode_node(List<Code> a1):f1_(a1){}
-	void accept(Laction_visitor*, void*);
+	~lcode_node() {
+	  destroy(f1_);
+	}
 };
 struct lexem_node : Code_domain {
 	std::string f1_;
 	lexem_node(const std::string& a1):f1_(a1){}
-	void accept(Code_visitor*, void*);
+	~lexem_node() {
+	}
 };
 struct lexrule_node : Lrule_domain {
 	List<std::string> f1_;
 	std::string f2_;
 	Laction f3_;
 	lexrule_node(List<std::string> a1, const std::string& a2, Laction a3):f1_(a1), f2_(a2), f3_(a3){}
-	void accept(Lrule_visitor*, void*);
+	~lexrule_node() {
+	  destroy(f1_);
+	  destroy(f3_);
+	}
 };
 struct lnext_node : Laction_domain {
 	lnext_node(){}
-	void accept(Laction_visitor*, void*);
+	~lnext_node() {
+	}
 };
 struct lskip_node : Laction_domain {
 	lskip_node(){}
-	void accept(Laction_visitor*, void*);
+	~lskip_node() {
+	}
 };
 struct lterm_node : Laction_domain {
 	ast::Value<std::string> f1_;
 	Term f2_;
 	lterm_node(ast::Value<std::string> a1, Term a2):f1_(a1), f2_(a2){}
-	void accept(Laction_visitor*, void*);
+	~lterm_node() {
+	  destroy(f1_);
+	  destroy(f2_);
+	}
 };
 struct mcode_node : Code_domain {
 	List<std::string> f1_;
 	List<Mrule> f2_;
 	mcode_node(List<std::string> a1, List<Mrule> a2):f1_(a1), f2_(a2){}
-	void accept(Code_visitor*, void*);
+	~mcode_node() {
+	  destroy(f1_);
+	  destroy(f2_);
+	}
 };
 struct mrule_node : Mrule_domain {
 	Node f1_;
 	List<Code> f2_;
 	mrule_node(Node a1, List<Code> a2):f1_(a1), f2_(a2){}
-	void accept(Mrule_visitor*, void*);
+	~mrule_node() {
+	  destroy(f1_);
+	  destroy(f2_);
+	}
 };
 struct node_node : Symbol_domain {
 	std::string f1_;
 	List<std::string> f2_;
 	node_node(const std::string& a1, List<std::string> a2):f1_(a1), f2_(a2){}
-	void accept(Symbol_visitor*, void*);
+	~node_node() {
+	  destroy(f2_);
+	}
 };
 struct node1_node : Node_domain {
 	std::string f1_;
 	node1_node(const std::string& a1):f1_(a1){}
-	void accept(Node_visitor*, void*);
+	~node1_node() {
+	}
 };
 struct node2_node : Node_domain {
 	std::string f1_;
 	List<std::string> f2_;
 	node2_node(const std::string& a1, List<std::string> a2):f1_(a1), f2_(a2){}
-	void accept(Node_visitor*, void*);
+	~node2_node() {
+	  destroy(f2_);
+	}
 };
 struct optelem_node : Gelem_domain {
 	List<Xrule> f1_;
 	optelem_node(List<Xrule> a1):f1_(a1){}
-	void accept(Gelem_visitor*, void*);
+	~optelem_node() {
+	  destroy(f1_);
+	}
 };
 struct pcode_node : Code_domain {
 	List<Code> f1_;
 	pcode_node(List<Code> a1):f1_(a1){}
-	void accept(Code_visitor*, void*);
+	~pcode_node() {
+	  destroy(f1_);
+	}
 };
 struct prog_node : Program_domain {
 	List<Decl> f1_;
@@ -631,53 +652,71 @@ struct prog_node : Program_domain {
 	List<Grule> f3_;
 	List<Code> f4_;
 	prog_node(List<Decl> a1, List<Lrule> a2, List<Grule> a3, List<Code> a4):f1_(a1), f2_(a2), f3_(a3), f4_(a4){}
-	void accept(Program_visitor*, void*);
+	~prog_node() {
+	  destroy(f1_);
+	  destroy(f2_);
+	  destroy(f3_);
+	  destroy(f4_);
+	}
 };
 struct repelem0_node : Gelem_domain {
 	List<Xrule> f1_;
 	repelem0_node(List<Xrule> a1):f1_(a1){}
-	void accept(Gelem_visitor*, void*);
+	~repelem0_node() {
+	  destroy(f1_);
+	}
 };
 struct repelem1_node : Gelem_domain {
 	List<Xrule> f1_;
 	repelem1_node(List<Xrule> a1):f1_(a1){}
-	void accept(Gelem_visitor*, void*);
+	~repelem1_node() {
+	  destroy(f1_);
+	}
 };
 struct snode_node : Term_domain {
 	std::string f1_;
 	snode_node(const std::string& a1):f1_(a1){}
-	void accept(Term_visitor*, void*);
+	~snode_node() {
+	}
 };
 struct symelem_node : Gelem_domain {
 	std::string f1_;
 	symelem_node(const std::string& a1):f1_(a1){}
-	void accept(Gelem_visitor*, void*);
+	~symelem_node() {
+	}
 };
 struct terminal_node : Symbol_domain {
 	std::string f1_;
 	terminal_node(const std::string& a1):f1_(a1){}
-	void accept(Symbol_visitor*, void*);
+	~terminal_node() {
+	}
 };
 struct tnode_node : Term_domain {
 	std::string f1_;
 	List<std::string> f2_;
 	tnode_node(const std::string& a1, List<std::string> a2):f1_(a1), f2_(a2){}
-	void accept(Term_visitor*, void*);
+	~tnode_node() {
+	  destroy(f2_);
+	}
 };
 struct token_node : Code_domain {
 	std::string f1_;
 	token_node(const std::string& a1):f1_(a1){}
-	void accept(Code_visitor*, void*);
+	~token_node() {
+	}
 };
 struct trmelem_node : Gelem_domain {
 	std::string f1_;
 	trmelem_node(const std::string& a1):f1_(a1){}
-	void accept(Gelem_visitor*, void*);
+	~trmelem_node() {
+	}
 };
 struct varelem_node : Gelem_domain {
 	List<Xrule> f1_;
 	varelem_node(List<Xrule> a1):f1_(a1){}
-	void accept(Gelem_visitor*, void*);
+	~varelem_node() {
+	  destroy(f1_);
+	}
 };
 struct vcode_node : Code_domain {
 	std::string f1_;
@@ -686,19 +725,28 @@ struct vcode_node : Code_domain {
 	List<Code> f4_;
 	List<Vrule> f5_;
 	vcode_node(const std::string& a1, const std::string& a2, const std::string& a3, List<Code> a4, List<Vrule> a5):f1_(a1), f2_(a2), f3_(a3), f4_(a4), f5_(a5){}
-	void accept(Code_visitor*, void*);
+	~vcode_node() {
+	  destroy(f4_);
+	  destroy(f5_);
+	}
 };
 struct vrule_node : Vrule_domain {
 	Node f1_;
 	List<Code> f2_;
 	vrule_node(Node a1, List<Code> a2):f1_(a1), f2_(a2){}
-	void accept(Vrule_visitor*, void*);
+	~vrule_node() {
+	  destroy(f1_);
+	  destroy(f2_);
+	}
 };
 struct xrule_node : Xrule_domain {
 	List<Gelem> f1_;
 	Gaction f2_;
 	xrule_node(List<Gelem> a1, Gaction a2):f1_(a1), f2_(a2){}
-	void accept(Xrule_visitor*, void*);
+	~xrule_node() {
+	  destroy(f1_);
+	  destroy(f2_);
+	}
 };
 inline Decl declcode(ast::Value<std::string> a1, List<Code> a2) {
 	return new declcode_node(a1, a2);
@@ -805,424 +853,17 @@ inline Vrule vrule(Node a1, List<Code> a2) {
 inline Xrule xrule(List<Gelem> a1, Gaction a2) {
 	return new xrule_node(a1, a2);
 }
-struct Code_visitor {
-	virtual ~Code_visitor(){}
-	virtual void visit(lexem_node*, void*) {}
-	virtual void visit(mcode_node*, void*) {}
-	virtual void visit(pcode_node*, void*) {}
-	virtual void visit(token_node*, void*) {}
-	virtual void visit(vcode_node*, void*) {}
-};
-template <typename T> struct Code_Tvisitor: Code_visitor {
-	T operator()(Code v){ T r; if(v) v->accept(this,&r); return r; }
-	virtual T visit(lexem_node*) { return T(); }
-	void visit(lexem_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(mcode_node*) { return T(); }
-	void visit(mcode_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(pcode_node*) { return T(); }
-	void visit(pcode_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(token_node*) { return T(); }
-	void visit(token_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(vcode_node*) { return T(); }
-	void visit(vcode_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-};
-template <> struct Code_Tvisitor<void>: Code_visitor {
-	void operator()(Code v){ if(v) v->accept(this,nullptr); }
-	virtual void visit(lexem_node*) {}
-	void visit(lexem_node* n,void* r) { visit(n); }
-	virtual void visit(mcode_node*) {}
-	void visit(mcode_node* n,void* r) { visit(n); }
-	virtual void visit(pcode_node*) {}
-	void visit(pcode_node* n,void* r) { visit(n); }
-	virtual void visit(token_node*) {}
-	void visit(token_node* n,void* r) { visit(n); }
-	virtual void visit(vcode_node*) {}
-	void visit(vcode_node* n,void* r) { visit(n); }
-};
-struct Decl_visitor {
-	virtual ~Decl_visitor(){}
-	virtual void visit(declcode_node*, void*) {}
-	virtual void visit(decloper_node*, void*) {}
-	virtual void visit(declre_node*, void*) {}
-	virtual void visit(decltypes_node*, void*) {}
-};
-template <typename T> struct Decl_Tvisitor: Decl_visitor {
-	T operator()(Decl v){ T r; if(v) v->accept(this,&r); return r; }
-	virtual T visit(declcode_node*) { return T(); }
-	void visit(declcode_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(decloper_node*) { return T(); }
-	void visit(decloper_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(declre_node*) { return T(); }
-	void visit(declre_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(decltypes_node*) { return T(); }
-	void visit(decltypes_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-};
-template <> struct Decl_Tvisitor<void>: Decl_visitor {
-	void operator()(Decl v){ if(v) v->accept(this,nullptr); }
-	virtual void visit(declcode_node*) {}
-	void visit(declcode_node* n,void* r) { visit(n); }
-	virtual void visit(decloper_node*) {}
-	void visit(decloper_node* n,void* r) { visit(n); }
-	virtual void visit(declre_node*) {}
-	void visit(declre_node* n,void* r) { visit(n); }
-	virtual void visit(decltypes_node*) {}
-	void visit(decltypes_node* n,void* r) { visit(n); }
-};
-struct Gaction_visitor {
-	virtual ~Gaction_visitor(){}
-	virtual void visit(gcode_node*, void*) {}
-	virtual void visit(gempty_node*, void*) {}
-	virtual void visit(gterm_node*, void*) {}
-};
-template <typename T> struct Gaction_Tvisitor: Gaction_visitor {
-	T operator()(Gaction v){ T r; if(v) v->accept(this,&r); return r; }
-	virtual T visit(gcode_node*) { return T(); }
-	void visit(gcode_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(gempty_node*) { return T(); }
-	void visit(gempty_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(gterm_node*) { return T(); }
-	void visit(gterm_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-};
-template <> struct Gaction_Tvisitor<void>: Gaction_visitor {
-	void operator()(Gaction v){ if(v) v->accept(this,nullptr); }
-	virtual void visit(gcode_node*) {}
-	void visit(gcode_node* n,void* r) { visit(n); }
-	virtual void visit(gempty_node*) {}
-	void visit(gempty_node* n,void* r) { visit(n); }
-	virtual void visit(gterm_node*) {}
-	void visit(gterm_node* n,void* r) { visit(n); }
-};
-struct Gelem_visitor {
-	virtual ~Gelem_visitor(){}
-	virtual void visit(optelem_node*, void*) {}
-	virtual void visit(repelem0_node*, void*) {}
-	virtual void visit(repelem1_node*, void*) {}
-	virtual void visit(symelem_node*, void*) {}
-	virtual void visit(trmelem_node*, void*) {}
-	virtual void visit(varelem_node*, void*) {}
-};
-template <typename T> struct Gelem_Tvisitor: Gelem_visitor {
-	T operator()(Gelem v){ T r; if(v) v->accept(this,&r); return r; }
-	virtual T visit(optelem_node*) { return T(); }
-	void visit(optelem_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(repelem0_node*) { return T(); }
-	void visit(repelem0_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(repelem1_node*) { return T(); }
-	void visit(repelem1_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(symelem_node*) { return T(); }
-	void visit(symelem_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(trmelem_node*) { return T(); }
-	void visit(trmelem_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(varelem_node*) { return T(); }
-	void visit(varelem_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-};
-template <> struct Gelem_Tvisitor<void>: Gelem_visitor {
-	void operator()(Gelem v){ if(v) v->accept(this,nullptr); }
-	virtual void visit(optelem_node*) {}
-	void visit(optelem_node* n,void* r) { visit(n); }
-	virtual void visit(repelem0_node*) {}
-	void visit(repelem0_node* n,void* r) { visit(n); }
-	virtual void visit(repelem1_node*) {}
-	void visit(repelem1_node* n,void* r) { visit(n); }
-	virtual void visit(symelem_node*) {}
-	void visit(symelem_node* n,void* r) { visit(n); }
-	virtual void visit(trmelem_node*) {}
-	void visit(trmelem_node* n,void* r) { visit(n); }
-	virtual void visit(varelem_node*) {}
-	void visit(varelem_node* n,void* r) { visit(n); }
-};
-struct Grule_visitor {
-	virtual ~Grule_visitor(){}
-	virtual void visit(grmrule_node*, void*) {}
-};
-template <typename T> struct Grule_Tvisitor: Grule_visitor {
-	T operator()(Grule v){ T r; if(v) v->accept(this,&r); return r; }
-	virtual T visit(grmrule_node*) { return T(); }
-	void visit(grmrule_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-};
-template <> struct Grule_Tvisitor<void>: Grule_visitor {
-	void operator()(Grule v){ if(v) v->accept(this,nullptr); }
-	virtual void visit(grmrule_node*) {}
-	void visit(grmrule_node* n,void* r) { visit(n); }
-};
-struct Laction_visitor {
-	virtual ~Laction_visitor(){}
-	virtual void visit(lcode_node*, void*) {}
-	virtual void visit(lnext_node*, void*) {}
-	virtual void visit(lskip_node*, void*) {}
-	virtual void visit(lterm_node*, void*) {}
-};
-template <typename T> struct Laction_Tvisitor: Laction_visitor {
-	T operator()(Laction v){ T r; if(v) v->accept(this,&r); return r; }
-	virtual T visit(lcode_node*) { return T(); }
-	void visit(lcode_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(lnext_node*) { return T(); }
-	void visit(lnext_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(lskip_node*) { return T(); }
-	void visit(lskip_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(lterm_node*) { return T(); }
-	void visit(lterm_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-};
-template <> struct Laction_Tvisitor<void>: Laction_visitor {
-	void operator()(Laction v){ if(v) v->accept(this,nullptr); }
-	virtual void visit(lcode_node*) {}
-	void visit(lcode_node* n,void* r) { visit(n); }
-	virtual void visit(lnext_node*) {}
-	void visit(lnext_node* n,void* r) { visit(n); }
-	virtual void visit(lskip_node*) {}
-	void visit(lskip_node* n,void* r) { visit(n); }
-	virtual void visit(lterm_node*) {}
-	void visit(lterm_node* n,void* r) { visit(n); }
-};
-struct Lrule_visitor {
-	virtual ~Lrule_visitor(){}
-	virtual void visit(lexrule_node*, void*) {}
-};
-template <typename T> struct Lrule_Tvisitor: Lrule_visitor {
-	T operator()(Lrule v){ T r; if(v) v->accept(this,&r); return r; }
-	virtual T visit(lexrule_node*) { return T(); }
-	void visit(lexrule_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-};
-template <> struct Lrule_Tvisitor<void>: Lrule_visitor {
-	void operator()(Lrule v){ if(v) v->accept(this,nullptr); }
-	virtual void visit(lexrule_node*) {}
-	void visit(lexrule_node* n,void* r) { visit(n); }
-};
-struct Mrule_visitor {
-	virtual ~Mrule_visitor(){}
-	virtual void visit(mrule_node*, void*) {}
-};
-template <typename T> struct Mrule_Tvisitor: Mrule_visitor {
-	T operator()(Mrule v){ T r; if(v) v->accept(this,&r); return r; }
-	virtual T visit(mrule_node*) { return T(); }
-	void visit(mrule_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-};
-template <> struct Mrule_Tvisitor<void>: Mrule_visitor {
-	void operator()(Mrule v){ if(v) v->accept(this,nullptr); }
-	virtual void visit(mrule_node*) {}
-	void visit(mrule_node* n,void* r) { visit(n); }
-};
-struct Node_visitor {
-	virtual ~Node_visitor(){}
-	virtual void visit(node1_node*, void*) {}
-	virtual void visit(node2_node*, void*) {}
-};
-template <typename T> struct Node_Tvisitor: Node_visitor {
-	T operator()(Node v){ T r; if(v) v->accept(this,&r); return r; }
-	virtual T visit(node1_node*) { return T(); }
-	void visit(node1_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(node2_node*) { return T(); }
-	void visit(node2_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-};
-template <> struct Node_Tvisitor<void>: Node_visitor {
-	void operator()(Node v){ if(v) v->accept(this,nullptr); }
-	virtual void visit(node1_node*) {}
-	void visit(node1_node* n,void* r) { visit(n); }
-	virtual void visit(node2_node*) {}
-	void visit(node2_node* n,void* r) { visit(n); }
-};
-struct Program_visitor {
-	virtual ~Program_visitor(){}
-	virtual void visit(prog_node*, void*) {}
-};
-template <typename T> struct Program_Tvisitor: Program_visitor {
-	T operator()(Program v){ T r; if(v) v->accept(this,&r); return r; }
-	virtual T visit(prog_node*) { return T(); }
-	void visit(prog_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-};
-template <> struct Program_Tvisitor<void>: Program_visitor {
-	void operator()(Program v){ if(v) v->accept(this,nullptr); }
-	virtual void visit(prog_node*) {}
-	void visit(prog_node* n,void* r) { visit(n); }
-};
-struct Symbol_visitor {
-	virtual ~Symbol_visitor(){}
-	virtual void visit(ident_node*, void*) {}
-	virtual void visit(node_node*, void*) {}
-	virtual void visit(terminal_node*, void*) {}
-};
-template <typename T> struct Symbol_Tvisitor: Symbol_visitor {
-	T operator()(Symbol v){ T r; if(v) v->accept(this,&r); return r; }
-	virtual T visit(ident_node*) { return T(); }
-	void visit(ident_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(node_node*) { return T(); }
-	void visit(node_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(terminal_node*) { return T(); }
-	void visit(terminal_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-};
-template <> struct Symbol_Tvisitor<void>: Symbol_visitor {
-	void operator()(Symbol v){ if(v) v->accept(this,nullptr); }
-	virtual void visit(ident_node*) {}
-	void visit(ident_node* n,void* r) { visit(n); }
-	virtual void visit(node_node*) {}
-	void visit(node_node* n,void* r) { visit(n); }
-	virtual void visit(terminal_node*) {}
-	void visit(terminal_node* n,void* r) { visit(n); }
-};
-struct Term_visitor {
-	virtual ~Term_visitor(){}
-	virtual void visit(snode_node*, void*) {}
-	virtual void visit(tnode_node*, void*) {}
-};
-template <typename T> struct Term_Tvisitor: Term_visitor {
-	T operator()(Term v){ T r; if(v) v->accept(this,&r); return r; }
-	virtual T visit(snode_node*) { return T(); }
-	void visit(snode_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-	virtual T visit(tnode_node*) { return T(); }
-	void visit(tnode_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-};
-template <> struct Term_Tvisitor<void>: Term_visitor {
-	void operator()(Term v){ if(v) v->accept(this,nullptr); }
-	virtual void visit(snode_node*) {}
-	void visit(snode_node* n,void* r) { visit(n); }
-	virtual void visit(tnode_node*) {}
-	void visit(tnode_node* n,void* r) { visit(n); }
-};
-struct Vrule_visitor {
-	virtual ~Vrule_visitor(){}
-	virtual void visit(vrule_node*, void*) {}
-};
-template <typename T> struct Vrule_Tvisitor: Vrule_visitor {
-	T operator()(Vrule v){ T r; if(v) v->accept(this,&r); return r; }
-	virtual T visit(vrule_node*) { return T(); }
-	void visit(vrule_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-};
-template <> struct Vrule_Tvisitor<void>: Vrule_visitor {
-	void operator()(Vrule v){ if(v) v->accept(this,nullptr); }
-	virtual void visit(vrule_node*) {}
-	void visit(vrule_node* n,void* r) { visit(n); }
-};
-struct Xrule_visitor {
-	virtual ~Xrule_visitor(){}
-	virtual void visit(xrule_node*, void*) {}
-};
-template <typename T> struct Xrule_Tvisitor: Xrule_visitor {
-	T operator()(Xrule v){ T r; if(v) v->accept(this,&r); return r; }
-	virtual T visit(xrule_node*) { return T(); }
-	void visit(xrule_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }
-};
-template <> struct Xrule_Tvisitor<void>: Xrule_visitor {
-	void operator()(Xrule v){ if(v) v->accept(this,nullptr); }
-	virtual void visit(xrule_node*) {}
-	void visit(xrule_node* n,void* r) { visit(n); }
-};
-inline void declcode_node::accept(Decl_visitor* v, void* r) {
-	v->visit(this, r);
 }
-inline void decloper_node::accept(Decl_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void declre_node::accept(Decl_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void decltypes_node::accept(Decl_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void gcode_node::accept(Gaction_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void gempty_node::accept(Gaction_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void grmrule_node::accept(Grule_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void gterm_node::accept(Gaction_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void ident_node::accept(Symbol_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void lcode_node::accept(Laction_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void lexem_node::accept(Code_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void lexrule_node::accept(Lrule_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void lnext_node::accept(Laction_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void lskip_node::accept(Laction_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void lterm_node::accept(Laction_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void mcode_node::accept(Code_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void mrule_node::accept(Mrule_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void node_node::accept(Symbol_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void node1_node::accept(Node_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void node2_node::accept(Node_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void optelem_node::accept(Gelem_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void pcode_node::accept(Code_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void prog_node::accept(Program_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void repelem0_node::accept(Gelem_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void repelem1_node::accept(Gelem_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void snode_node::accept(Term_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void symelem_node::accept(Gelem_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void terminal_node::accept(Symbol_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void tnode_node::accept(Term_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void token_node::accept(Code_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void trmelem_node::accept(Gelem_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void varelem_node::accept(Gelem_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void vcode_node::accept(Code_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void vrule_node::accept(Vrule_visitor* v, void* r) {
-	v->visit(this, r);
-}
-inline void xrule_node::accept(Xrule_visitor* v, void* r) {
-	v->visit(this, r);
-}
-}
+using namespace ast;
 int yyliteral(const std::string&);
-extern int yydebug_flag;
 void yystart(FILE *);
 void yystart(std::istream&);
 int yywrap();
 int yyparse();
 extern const char* yyinputfile;
-extern char** yyargv;
-extern int yyargc;
+extern int yydebug_flag;
 union YYSTYPE {
-  Code f15_;
+  Code f16_;
   Decl f2_;
   Gaction f26_;
   Gelem f3_;
@@ -1232,34 +873,34 @@ union YYSTYPE {
   List<Decl> f10_;
   List<Gelem> f14_;
   List<Grule> f5_;
-  List<Lrule> f21_;
+  List<Lrule> f19_;
   List<Mrule> f17_;
   List<Symbol> f7_;
-  List<Vrule> f19_;
+  List<Vrule> f20_;
   List<Xrule> f4_;
   List<std::string> f9_;
-  Lrule f16_;
+  Lrule f15_;
   Mrule f18_;
   Node f24_;
   Program f25_;
   Symbol f8_;
   Term f12_;
-  Vrule f20_;
+  Vrule f21_;
   Xrule f13_;
   ast::Value<std::string> f1_;
   ast::Value<std::string> f11_;
 };
+inline void yyclear_attr(YYSTYPE&v) { memset(&v,0,sizeof(v)); }
 #define YYSTYPE_IS_TRIVIAL 1
 #define YYSTYPE_IS_DECLARED 1
-extern Program yyastroot;
-void clear_attr(YYSTYPE&);
+int yylex(YYSTYPE*, YYLTYPE*);
 void yyerror(const std::string &);
 void yyerror(int, int, const std::string&);
-int yylex(YYSTYPE*, YYLTYPE*);
 void yyerror(YYLTYPE*, const char*);
-void set_yyloc(const YYLTYPE&);
-void set_yyloc(int, int);
+void yyinterpret(Program);
 
+	#line 2 "caio.caio"
+ 
 #include <string>
 #include <iostream>
 #include <fstream>
@@ -1272,17 +913,21 @@ void set_yyloc(int, int);
 #include <algorithm>
 #include <cctype>
 using namespace std;
+enum Caio_mode { M_DECL, M_LEX, M_GRM, M_CODE };
+extern int caio_mode;
 
 extern int bnf_flag;
 extern int yyparse_flag;
 extern int yylex_flag;
 void generate(const string &fn, const string &fp, Program);
 void switch_option(const string &o);
+void add_using(const string &o);
 extern string filename,filepath;
-void get_args();
+void get_args(int &, char **&);
+void set_input(const char*);
+#define YYARGINIT(argc,argv) get_args(argc,argv)
+#define YYINIT(name) set_input(name)
 
-#ifndef ASTPRINT_H
-#define ASTPRINT_H 1
 namespace ast {
 #ifndef ASTPRINT_BUILTIN
 #define ASTPRINT_BUILTIN 1
@@ -1303,9 +948,9 @@ static int astprint(std::ostream &s, char v, int=0, const char *p=nullptr)
   return 0;
 }
 static int astprint(std::ostream &s, const std::string &v, int=0, const char *p=nullptr)
-{ s<<"\"";
+{ s<<'\"';
   for(auto x:v) print_char(s,x);
-  s<<"\"";
+  s<<'\"';
   if(p) s<<p;
   return 0;
 }
@@ -1316,6 +961,7 @@ inline int astprint(std::ostream &s, T v, int=0, const char *p=nullptr)
   return 0;
 }
 #endif
+
 template <typename T>
 int astprint(std::ostream &s, Value<T> v, int=0, const char *p=nullptr)
 { if(!v) s<<"nullptr";
@@ -1323,6 +969,7 @@ int astprint(std::ostream &s, Value<T> v, int=0, const char *p=nullptr)
   if(p) s<<p;
   return 0;
 }
+
 template <typename T>
 int astprint(std::ostream &s, List<T> v, int i=0, const char *p=nullptr)
 { bool fl=0, r=0;
@@ -1339,5 +986,4 @@ int astprint(std::ostream &s, List<T> v, int i=0, const char *p=nullptr)
   return r;
 }
 }
-#endif
 #endif
