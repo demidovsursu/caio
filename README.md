@@ -9,7 +9,7 @@ Directory src/ contains Caio's sourse. Use the previous generated files from dir
 
 See the code of the mini-Basic interpreter.
 ```cpp
-%option yylineno case-insensitive locations
+%option case-insensitive locations
 %operator <yfx> '+' '-'
 %operator <yfx> '*' '/' 
 %operator <fy> '-'
