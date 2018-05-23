@@ -24,11 +24,11 @@ See the code of the mini-Basic interpreter.
 using namespace std;
 int find_id(string name);
 }
-%% // rules for lexical analizer
+%% // rules for lexer
 [ \t\r] 				; // skip spaces
 \d+ 					?number?  <stoi(yytext)>
 [a-zA-Z]\w*				?ident?  <find_id(yytext)>
-%% // rules for parse generator
+%% // rules for parser
 program = stmts 			<$1>
  	;
 stmts = { stmt '\n' }
