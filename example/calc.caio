@@ -1,13 +1,12 @@
 %{
 #include <stdio.h>
 %}
-%option bnf interactive
+%option bnf interactive default-skip
 %operator <yfx> '+' '-'
 %operator <yfx> '*' '/'
 %operator <fy> '-'
 %%
 \d+ { sscanf(yytext,"%d",&$$); return ?number?; }
-. ;
 %%
 program: 
   | program expr '\n' { printf("%d\n",$2); }
