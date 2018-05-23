@@ -1,4 +1,4 @@
-%option yylineno case-insensitive locations
+%option case-insensitive locations
 %operator <yfx> '+' '-'
 %operator <yfx> '*' '/' 
 %operator <fy> '-'
@@ -13,11 +13,11 @@
 using namespace std;
 int find_id(string name);
 }
-%% // rules for lexical analizer
+%% // rules for lexer
 [ \t\r] 				; // skip spaces
 \d+ 					?number?  <stoi(yytext)>
 [a-zA-Z]\w*				?ident?  <find_id(yytext)>
-%% // rules for parse generator
+%% // rules for parser
 program = stmts 			<$1>
  		  ;
 stmts = { stmt '\n' }
