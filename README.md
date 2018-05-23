@@ -9,7 +9,7 @@ Directory src/ contains Caio's sourse. Use the previous generated files from dir
 
 See the code of the mini-Basic interpreter.
 ```cpp
-%option yylineno case-insensitive
+%option yylineno case-insensitive locations
 %operator <yfx> '+' '-'
 %operator <yfx> '*' '/' 
 %operator <fy> '-'
@@ -29,10 +29,9 @@ int find_id(string name);
 [ \t\r] 				; // skip spaces
 \d+ 					?number?  <stoi(yytext)>
 [a-zA-Z]\w*				?ident?  <find_id(yytext)>
-.|\n					// return the literal
 %% // rules for parse generator
-program = stmts 			%{ interp($1); }
- 		  ;
+program = stmts 			<$1>
+ 	;
 stmts = { stmt '\n' }
 	;
 stmt = 					
