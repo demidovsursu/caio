@@ -22,7 +22,6 @@ See the code of the mini-Basic interpreter.
 #include <map>
 #include <cctype>
 using namespace std;
-void interp(List<Statement> p);
 int find_id(string name);
 }
 %% // rules for lexical analizer
@@ -63,15 +62,15 @@ visitor eval<Expr,int> { // evaluate the expression
   visit number(x):  return x;
   visit ident(x): return mem[x];
 }
-void interp(List<Statement> p) // execute statements
+void yyinterpret(List<Statement> p) // execute statements
 { for(auto s:p)
     match s {
       rule assign(v, e): mem[v]=eval(e);
       rule input(v): cin>>mem[v];
       rule print(e): cout<<eval(e)<<endl;
-      rule whilestmt(e,p1): while(eval(e)) interp(p1);
-      rule ifstmt(e,p1,p2): if(eval(e)) interp(p1);
-                            else interp(p2);
+      rule whilestmt(e,p1): while(eval(e)) yyinterpret(p1);
+      rule ifstmt(e,p1,p2): if(eval(e)) yyinterpret(p1);
+                            else yyinterpret(p2);
     }
 }
 map<string,int> ti; // table of identifiers
