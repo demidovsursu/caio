@@ -12,10 +12,11 @@
 #include <algorithm>
 #include <cctype>
 using namespace std;
+enum Caio_mode { M_DECL, M_LEX, M_GRM, M_CODE };
+extern int caio_mode;
 %}
 %code lex {
 %{
-enum Caio_mode { M_DECL, M_LEX, M_GRM, M_CODE };
 int caio_mode=M_DECL;
 string re_str,code_dest;
 static string reinput(FlexLexer& scanner, int nl)
@@ -56,13 +57,17 @@ extern int yyparse_flag;
 extern int yylex_flag;
 void generate(const string &fn, const string &fp, Program);
 void switch_option(const string &o);
+void add_using(const string &o);
 extern string filename,filepath;
-void get_args();
+void get_args(int &, char **&);
+void set_input(const char*);
+#define YYARGINIT(argc,argv) get_args(argc,argv)
+#define YYINIT(name) set_input(name)
 }
 
 %type <string> ?id? ?terminal? ?re? ?const? ?number? ?ref? ?lexem? ?spaces?
 %type <string> type1 type2 alist
-%type <Program> program prog(List<Decl>,List<Lrule>,List<Grule>,List<Code>)
+%type <Program> program
 %type <Decl> decl
 %type <Lrule> lrule
 %type <Grule> grule
@@ -88,6 +93,7 @@ string_const R"(\"([^\\\"\n]|\\.)*\")"
 ^"%type" "%type"
 ^"%code" "%code"
 ^"%option" "%option"
+^"%using" "%using"
 ^"%operator" "%operator"
 ^{ident}                  { $$=yytext; BEGIN(S_RE2); return ?id?; }
 
@@ -101,7 +107,6 @@ string_const R"(\"([^\\\"\n]|\\.)*\")"
             if(yyparse_flag) { BEGIN(S_GRM); caio_mode=M_GRM; return ?%%grm?; }
             BEGIN(S_CODE); caio_mode=M_CODE; return ?%%code?;
           }
-.|\n
 "//".*\n '\n'
 <S_LEX2>"//".*\n { BEGIN(S_LEX); return '\n'; }
 <INITIAL,S_LEX2,S_GRM,S_NODE,S_LIST,S_TERM>"/*"(.|\n)*?"*/" ;
@@ -121,7 +126,7 @@ string_const R"(\"([^\\\"\n]|\\.)*\")"
 <S_LEX>^"%%".*\n { if(yyparse_flag) { BEGIN(S_GRM); caio_mode=M_GRM; return ?%%grm?; }
                    BEGIN(S_CODE); caio_mode=M_CODE; return ?%%code?;
             }
-<S_LEX>^"<" { BEGIN(S_STATE); return '<'; }
+<S_LEX>^"<"/[^<] { BEGIN(S_STATE); return '<'; }
 <S_LEX2>"<" { yy_push_state(S_TERM); return '<'; }
 <S_LEX>R"(R\")" { $$=reinput(YY_SCANNER,0); BEGIN(S_LEX2);
              return ?re?; 
@@ -131,12 +136,10 @@ string_const R"(\"([^\\\"\n]|\\.)*\")"
 <S_LEX>. { re_str=""; yyunput(yytext[0]); BEGIN(S_LEX2); yy_push_state(S_RE); }
 <S_LEX2>[ \t] ;
 <S_LEX2,S_STATE>\n { BEGIN(S_LEX); return '\n'; }
-<S_LEX2>.
 
 <S_STATE>{ident} ?id?
 <S_STATE>[ \t] ;
 <S_STATE>">" { BEGIN(S_LEX); return '>'; }
-<S_STATE>.
 
 <S_GRM,S_TERM>[ \t\r\n] ;
 <S_TERM>">" { yy_pop_state(); return '>'; }
@@ -154,9 +157,8 @@ string_const R"(\"([^\\\"\n]|\\.)*\")"
 <S_CODE>visit { yy_push_state(S_NODE); return "visit"; }
 <S_TERM,S_CODE,S_LIST>{ident} ?id?
 <S_TERM,S_CODE,S_LIST>{number} ?const?
-<S_LIST,S_CODE>"$$" ?ref?
+<S_LIST,S_CODE>"$$"|"@$" ?ref?
 <S_TERM,S_LIST,S_CODE>"$"[0-9]+ ?ref?
-<S_TERM>.
 
 <S_GRM,S_NODE,S_LIST>"//".*\n ;
 <S_GRM>^"%%".*\n { BEGIN(S_CODE); caio_mode=M_CODE; return ?%%code?; }
@@ -171,7 +173,6 @@ string_const R"(\"([^\\\"\n]|\\.)*\")"
 <S_GRM>:   '='
 <S_GRM>"/" '|'
 <S_GRM>"<" { yy_push_state(S_TERM); return '<'; }
-<S_GRM>.
 
 <S_LIST>"{" { BEGIN(S_CODE); return '{'; }
 <S_LIST>")" { yy_pop_state(); return ')'; }
@@ -182,7 +183,6 @@ string_const R"(\"([^\\\"\n]|\\.)*\")"
 <S_NODE>"{" { BEGIN(S_CODE); return '{'; }
 <S_NODE>{ident} ?id?
 <S_NODE>[ \t\n] ;
-<S_NODE>.
 
 <S_CODE>"{" { yy_push_state(S_CODE); return '{'; }
 <S_CODE>"}" { if(state_.size()>0) yy_pop_state(); return '}'; }
@@ -198,17 +198,12 @@ string_const R"(\"([^\\\"\n]|\\.)*\")"
 program : { [ decl ] '\n' }
           [ ?%%lex? { [lrule ] '\n' }  ] 
           [ ?%%grm? { grule ';' }  ]  
-          [ ?%%code? xcode  ]          %{ 
-                                         $$=prog($1,$2,$3,$4); 
-                                         if(!yydebug_flag || yydebug_flag>2)
-                                         { get_args(); 
-                                           generate(filename,filepath,$$); 
-                                         }
-                                       }
+          [ ?%%code? xcode  ]          <prog($1,$2,$3,$4)>
         ;
 decl : "%type" '<' type1 '>' { symbol }       <decltypes($3,$5)>
      | "%option" { ( ?id? '(' ?number? ')'    <string($1+$3)> 
                   | ?id? ) }-                 %{ for(auto o:$2) switch_option(o); }
+     | "%using" { ?id? }-                     %{ for(auto o:$2) add_using(o); }
      | "%operator" { '<' ?id? '>' 
                      { ?terminal? }-          <cons($2,$4)> 
                    }-                         <decloper($2)>
@@ -255,7 +250,7 @@ grule : ?id? '=' erule                        <grmrule($1,$3)>
       ;
 erule : xrule { '|' xrule }                   <cons($1,$2)>
       ;
-xrule : { elem } rcode                        <xrule($1,$2)>
+xrule : { elem [ ',' ] <$1> } rcode           <xrule($1,$2)>
       ;
 rcode :                                       <gempty()>
       | '<' term '>'                          <gterm($2)>
@@ -315,19 +310,13 @@ node : ?id? '(' [ ?id? { ',' ?id? }           <cons($1,$2)>
      | ?id?                                   <node1($1)>
      ;
 %%
-void get_args()
+void get_args(int &yyargc, char **&yyargv)
 { for(int i=1;i<yyargc;++i)
     if(yyargv[i][0]=='-' && yyargv[1][1]=='o')
       filepath=yyargv[i]+2;
-  filename=yyinputfile;
-  size_t p=filename.rfind('/');
-  if(p!=string::npos) filename=filename.substr(p+1);
-  p=filename.rfind('\\');
-  if(p!=string::npos) filename=filename.substr(p+1);
-  p=filename.rfind('.');
-  if(p!=string::npos) filename=filename.substr(0,p);
 }
 int bnf_flag=1;
+int ast_flag=0;
 int case_flag=0;
 int inter_flag=0;
 int main_flag=1;
@@ -338,10 +327,17 @@ int matcherr_flag=1;
 int astprint_flag=1;
 int lexprint_flag=0;
 int yyparse_flag=1;
+int visitor_flag=1;
 int yylex_flag=1;
 int yyerror_flag=1;
 int expect_flag=-1;
+int yyinterpret_flag=1;
+int usevalue_flag=0;
+int usestring_flag=0;
+int uselist_flag=0;
 int reentrant_flag=0;
+int lexdefault_flag=-1;
+int line_flag=1;
 
 int grmfile_exist=0;
 int lexfile_exist=0;
@@ -352,6 +348,7 @@ int return_field=0;
 int symbol_uid=0;
 int terminal_uid=1000;
 string filename,filepath;
+string root_tip;
 
 struct symbolinfo {
   string altname;
@@ -399,8 +396,72 @@ set<string> symbol_names;
 set<string> lex_states;
 map<string,int> union_fields;
 ostringstream vout;
-string root_tip;
 string default_tip="int"s;
+vector<string> using_list;
+
+void set_input(const char* name)
+{
+  bnf_flag=1;
+  ast_flag=0;
+  case_flag=0;
+  inter_flag=0;
+  main_flag=1;
+  locations_flag=0;
+  literal_flag=1;
+  yywrap_flag=0;
+  matcherr_flag=1;
+  astprint_flag=1;
+  lexprint_flag=0;
+  yyparse_flag=1;
+  visitor_flag=1;
+  yylex_flag=1;
+  yyerror_flag=1;
+  expect_flag=-1;
+  yyinterpret_flag=1;
+  usevalue_flag=0;
+  usestring_flag=0;
+  uselist_flag=0;
+  reentrant_flag=0;
+  lexdefault_flag=-1;
+  line_flag=1;
+
+  grmfile_exist=0;
+  lexfile_exist=0;
+
+  gen_mode=0;
+  return_field=0;
+
+  symbol_uid=0;
+  terminal_uid=1000;
+  root_tip=""s;
+  caio_mode=M_DECL;
+
+  symbols.clear();
+  consts.clear();
+  domains.clear();
+  nodes.clear();
+  opers.clear();
+  lexdefs.clear();
+  defined_symbols.clear();
+  symbol_names.clear();
+  lex_states.clear();
+  union_fields.clear();
+  vout.clear();
+  default_tip="int"s;
+  using_list.clear();
+  
+  filename=name;
+  size_t p=filename.rfind('/');
+  if(p!=string::npos) filename=filename.substr(p+1);
+  p=filename.rfind('\\');
+  if(p!=string::npos) filename=filename.substr(p+1);
+  p=filename.rfind('.');
+  if(p!=string::npos) filename=filename.substr(0,p);
+}
+
+void add_using(const string &o)
+{ using_list.push_back(o);
+}
 void switch_option(const string &o)
 {
    if(o=="ebnf"s)
@@ -443,6 +504,14 @@ void switch_option(const string &o)
      literal_flag=1;
    else if(o=="noliteral-rules"s)
      literal_flag=0;
+   else if(o=="nodefault"s)
+     lexdefault_flag=0;
+   else if(o=="default-skip"s)
+     lexdefault_flag=2;
+   else if(o=="default-literal"s)
+     lexdefault_flag=3;
+   else if(o=="default-echo"s)
+     lexdefault_flag=1;
    else if(o=="yywrap"s)
      yywrap_flag=1;
    else if(o=="noyywrap"s)
@@ -451,6 +520,14 @@ void switch_option(const string &o)
      matcherr_flag=1;
    else if(o=="nomatcherror"s)
      matcherr_flag=0;
+   else if(o=="visitor"s)
+     visitor_flag=2;
+   else if(o=="novisitor"s)
+     visitor_flag=0;
+   else if(o=="yyinterpret"s)
+     yyinterpret_flag=1;
+   else if(o=="noyyinterpret"s)
+     yyinterpret_flag=0;
    else if(o=="astprint"s)
      astprint_flag=1;
    else if(o=="noastprint"s)
@@ -460,9 +537,21 @@ void switch_option(const string &o)
    else if(o=="nolexprint"s)
      lexprint_flag=0;
    else if(o=="yyerror"s)
-     yyerror_flag=0;
-   else if(o=="noyyerror"s)
      yyerror_flag=1;
+   else if(o=="noyyerror"s)
+     yyerror_flag=0;
+   else if(o=="line"s)
+     line_flag=1;
+   else if(o=="noline"s)
+     line_flag=0;
+   else if(o=="ast"s)
+   {
+     main_flag=0;
+     yylex_flag=0;
+     yyparse_flag=0;
+     ast_flag=1;
+     locations_flag=0;
+   }
    else if(o.substr(0,6)=="expect"s)
      expect_flag=stoi(o.substr(6));
 }
@@ -477,7 +566,7 @@ bool is_builtin_type(const string &t)
 }
 bool is_big_builtin_type(const string &t)
 { 
-  return t.substr(0,5)=="std::"s;
+  return t=="std::string"s;
 }
 bool is_domain(const string &s)
 { return domains.find(s)!=domains.end();
@@ -559,26 +648,28 @@ bool isterminal(const string &o)
 bool isliteral(const string &o)
 { return o[0]=='\'' || o[0]=='\"';
 }
-map<char,string> cyr_lat{
-{'à',"a"},{'á',"b"},{'â',"v"},{'ã',"g"},{'ä',"d"},{'å',"e"},{'¸',"yo"},{'æ',"zh"},
-{'ç',"z"},{'è',"i"},{'é',"y"},{'ê',"k"},{'ë',"l"},{'ì',"m"},{'í',"n"},{'î',"o"},
-{'ï',"p"},{'ð',"r"},{'ñ',"s"},{'ò',"t"},{'ó',"u"},{'ô',"f"},{'õ',"kh"},{'ö',"ts"},
-{'÷',"ch"},{'ø',"sh"},{'ù',"tsh"},{'ü',"j"},{'û',"iq"},{'ú',"q"},{'ý',"eq"},{'þ',"yu"},{'ÿ',"ya"},
-{'À',"A"},{'Á',"B"},{'Â',"V"},{'Ã',"G"},{'Ä',"D"},{'Å',"E"},{'¨',"Yo"},{'Æ',"Zh"},
-{'Ç',"Z"},{'È',"I"},{'É',"Y"},{'Ê',"K"},{'Ë',"L"},{'Ì',"M"},{'Í',"N"},{'Î',"O"},
-{'Ï',"P"},{'Ð',"R"},{'Ñ',"S"},{'Ò',"T"},{'Ó',"U"},{'Ô',"F"},{'Õ',"Kh"},{'Ö',"Ts"},
-{'×',"Ch"},{'Ø',"Sh"},{'Ù',"Tsh"},{'Ü',"J"},{'Û',"Iq"},{'Ú',"Q"},{'Ý',"Eq"},{'Þ',"Yu"},{'ß',"Ya"},
-{'-',"_"}
-};
-
-string encode_symbol(const string &s)
-{ string r;
-  for(auto c:s)
-  { auto it=cyr_lat.find(c);
-    if(it==cyr_lat.end())
-       r+=c;
-     else
-       r+=it->second;
+const char* cyr_enc[32]={
+      "a","b","v","g","d","e","zh","z","i","y","k","l","m","n","o",
+      "p","r","s","t","u","f","kh","ts","ch","sh","tsh","q","iq","j","eq","yu","ya"};
+string encode_symbol(const string &sym)
+{ string r,s;
+  for(auto c:sym)
+  { int ch=c&0xFF;
+    if(ch>=224)
+      s=cyr_enc[ch-224];
+    else if(ch>=192)
+    { s=cyr_enc[ch-192];
+      s[0]=toupper(s[0]);
+    }
+    else if(ch=='-')
+      s="_";
+    else if(ch==168)
+      s="Yo";
+    else if(ch==184)
+      s="yo";
+    else
+      s=string(1,c);
+    r+=s;
   }
   return r;
 }
@@ -621,9 +712,9 @@ string type_mark(const string &t, int cf)
     return "const "s+t+"&";
   return t;
 }
-bool start_rule=0;
 void gen_coderef(ostream& fout, const string &t, int mlevel, int limit)
-{ if(t=="$$"s)
+{ 
+  if(t=="$$"s)
   {
     if(gen_mode==0 && mlevel==0)
       yyerror("Can't use $$ without rule"s);
@@ -631,8 +722,17 @@ void gen_coderef(ostream& fout, const string &t, int mlevel, int limit)
       fout<<"(*_node"<<mlevel<<")";
     else if(gen_mode==1)
       fout<<"yylval.f"<<return_field<<"_";
-    else if(start_rule && !empty_type(root_tip))
-      fout<<"yyastroot="<<t;
+    else
+      fout<<t;
+  }
+  else if(t=="@$"s)
+  {
+    if(gen_mode==0 && mlevel==0 || locations_flag!=2)
+      yyerror("Can't use @$ without rule or locations option"s);
+    else if(gen_mode==0)
+      fout<<"(_node"<<mlevel<<"->yyloc)";
+    else if(gen_mode==1)
+      fout<<"(yylloc)";
     else
       fout<<t;
   }
@@ -648,6 +748,14 @@ void gen_coderef(ostream& fout, const string &t, int mlevel, int limit)
   else
     fout<<t;
 }
+void show_line(ostream& fout, int l, int c)
+{
+    if(line_flag==0 || l<=1) return;
+    fout<<"\n\t#line "<<l<<" \""<<yyinputfile<<"\"\n";
+    if(c<=0) c=1;
+    while(--c>=0) fout<<' ';
+}
+void gen_code_line(ostream& fout, List<Code> code, int mlevel,int limit);
 void gen_code(ostream& fout, List<Code> code, int mlevel,int limit)
 { for(auto c:code)
   match c 
@@ -698,17 +806,21 @@ void gen_code(ostream& fout, List<Code> code, int mlevel,int limit)
               else
               {
                 auto it=nodes.find(idn);
-                if(it==nodes.end())
+                if(it==nodes.end() && using_list.size()==0)
                   yyerror("Node "s+idn+" don't exist"s);
                 if(mtip==0) 
                 { int n=0;
                   for(auto x:a) ++n;
-                  if(n!=it->second.types.size()-1)
+                  if(it!=nodes.end() && n!=it->second.types.size()-1)
                     yyerror("Node "s+idn+"' args can't matched"s);
                   nlimit=0;
                 }
                 else
-                  nlimit=it->second.types.size()-1;
+                { if(it!=nodes.end())
+                    nlimit=it->second.types.size()-1;
+                  else 
+                    nlimit=100;
+                }
               }
               if(flg) fout<<"else ";
               if(idn=="nullptr"s)
@@ -722,7 +834,7 @@ void gen_code(ostream& fout, List<Code> code, int mlevel,int limit)
               { ++n;
                 fout<<"  auto &"<<f<<"=_node"<<(mlevel+1)<<"->f"<<n<<"_;\n";
               }
-              gen_code(fout,co,mlevel+1,nlimit);
+              gen_code_line(fout,co,mlevel+1,nlimit);
               fout<<"}\n";
               flg=1;
             }
@@ -730,18 +842,23 @@ void gen_code(ostream& fout, List<Code> code, int mlevel,int limit)
         }
         if(!dflt && matcherr_flag)
         {  if(flg) fout<<"else ";
-           fout<<"{ yyerror(\"Match error\"s); }\n";
+           fout<<"{ yyerror(\""<<yyinputfile<<":"<<@$.last_line<<":"<<@$.last_column<<": Match error\"s); }\n";
         }
         fout<<"}\n";
+        show_line(fout,@$.last_line,@$.last_column);
+
         gen_mode=old_mode;
       }
     rule vcode(id,tip,ret,cc,rules):
       { if(gen_mode!=0 || mlevel>0)
           yyerror("Can't define visitor at this point"s);
+        if(visitor_flag==0)
+          yyerror("Visitor is disabled"s);
+        visitor_flag=2;
         int old_mode=gen_mode;
         gen_mode=0;
         fout<<"struct "<<id<<"_visitor:"<<tip<<"_Tvisitor<"<<ret<<"> {\n";
-        gen_code(fout,cc,mlevel+1,0);
+        gen_code_line(fout,cc,mlevel+1,0);
         fout<<"\n";
         for(auto r:rules)
         {          
@@ -761,17 +878,21 @@ void gen_code(ostream& fout, List<Code> code, int mlevel,int limit)
                   }
               }
               auto it=nodes.find(idn);
-              if(it==nodes.end())
+              if(it==nodes.end() && using_list.size()==0)
                 yyerror("Node "s+idn+" don't exist"s);
               if(mtip==0) 
               { int n=0;
                 for(auto x:a) ++n;
-                if(n!=it->second.types.size()-1)
+                if(it!=nodes.end() && n!=it->second.types.size()-1)
                   yyerror("Node "s+idn+"' args can't matched"s);
                 nlimit=0;
               }
               else
-                nlimit=it->second.types.size()-1;
+              { if(it!=nodes.end())
+                  nlimit=it->second.types.size()-1;
+                else
+                  nlimit=100;
+              }
               fout<<ret<<" visit("<<idn<<"_node*);\n";
               vout<<ret<<" "<<id<<"_visitor::visit("<<idn<<"_node* _node"<<(mlevel+1)<<") {\n";
               int n=0;
@@ -779,12 +900,13 @@ void gen_code(ostream& fout, List<Code> code, int mlevel,int limit)
               { ++n;
                 vout<<"  auto &"<<f<<"=_node"<<(mlevel+1)<<"->f"<<n<<"_;\n";
               }
-              gen_code(vout,co,mlevel+1,nlimit);
+              gen_code_line(vout,co,mlevel+1,nlimit);
               vout<<"}\n";
             }
           }
         }
         fout<<"} "<<id<<";\n";
+        show_line(fout,@$.last_line,@$.last_column);
         gen_mode=old_mode;
       }
     rule token(val):
@@ -797,6 +919,13 @@ void gen_code(ostream& fout, List<Code> code, int mlevel,int limit)
         else 
           fout<<"("<<it->second.altname<<")";
       }
+  }
+}
+void gen_code_line(ostream& fout, List<Code> code, int mlevel,int limit)
+{ if(code)
+  { 
+    show_line(fout,code[0]->yyloc.first_line,code[0]->yyloc.first_column);
+    gen_code(fout,code,mlevel,limit);
   }
 }
 void add_symbol(const string&id, const string&tip)
@@ -1420,23 +1549,26 @@ void gen_lexrules(ostream& fout, List<Lrule> rules)
       match act {
       rule lterm(id,t):
          {
-           fout<<"{ ";
+           fout<<"{ yyclear_attr(yylval);";
            if(id)
            { string nid=normalize_terminal(id);
-             fout<<"set_yyloc(lineno(),columno()); ";
+             if(locations_flag==2)
+             fout<<" set_yyloc(lineno(),columno());";
              auto it=symbols.find(nid);
              int rf=0;
              if(!empty_type(it->second.tip))
                rf=union_fields[it->second.tip];
              if(t)
-             { fout<<"yylval.f"<<to_string(rf)<<"_=";
+             { 
+               show_line(fout,@$.first_line-1,@$.first_column-10);
+               fout<<"yylval.f"<<to_string(rf)<<"_=";
                gen_mode=1;
                gen_code(fout,t,0);
                fout<<"; ";
              }
              else if(it->second.tip=="std::string"s || it->second.tip=="std::string?"s)
-               fout<<"yylval.f"<<to_string(rf)<<"_=yytext; ";
-             fout<<"return ";
+               fout<<" yylval.f"<<to_string(rf)<<"_=yytext; ";
+             fout<<" return ";
              auto idt=symbols.find(nid);
              if(idt->second.terminalnumber>0)
                fout<<idt->second.terminalnumber;
@@ -1444,7 +1576,7 @@ void gen_lexrules(ostream& fout, List<Lrule> rules)
                fout<<idt->second.altname;
            }
            else
-             fout<<"clear_attr(yylval); return yyliteral(yytext)";
+             fout<<" return yyliteral(yytext)";
            fout<<"; }\n";
          }
       rule lskip(): fout<<";\n";
@@ -1453,9 +1585,10 @@ void gen_lexrules(ostream& fout, List<Lrule> rules)
          return_field=0;
          find_return_field(code);
          gen_mode=1;
-         fout<<"{ clear_attr(yylval);\n";
+         fout<<"{ yyclear_attr(yylval);";
          if(locations_flag==2)
-           fout<<"\tset_yyloc(lineno(),columno());\n\t";
+           fout<<" set_yyloc(lineno(),columno());";
+         show_line(fout,@$.first_line-1,@$.first_column+2);
          gen_code(fout,code,0,0);
          fout<<"\t}\n";
       }
@@ -1470,7 +1603,7 @@ void create_lexfile(ostream& fout,const string &fn,List<Lrule> lrules)
     fout<<"%option interactive\n";
   if(yywrap_flag==0)
     fout<<"%option noyywrap\n";
-  fout<<"%option bison-locations\n";
+  fout<<"%option bison-locations noline\n";
   fout<<"%top{\n";
   fout<<"#include \""<<fn<<".h\"\n";
   fout<<"%}\n";
@@ -1493,7 +1626,7 @@ void create_lexfile(ostream& fout,const string &fn,List<Lrule> lrules)
     for(auto s:symbols)
     { if(isliteral(s.first))
       {
-        fout<<literal_to_re(s.first)<<"\t{ clear_attr(yylval); return ";
+        fout<<literal_to_re(s.first)<<"\t{ yyclear_attr(yylval); return ";
         if(s.second.terminalnumber>0)
           fout<<s.second.terminalnumber;
         else 
@@ -1503,6 +1636,22 @@ void create_lexfile(ostream& fout,const string &fn,List<Lrule> lrules)
     }
   }
   gen_lexrules(fout,lrules);
+  if(lexdefault_flag!=1)
+  {
+    if(lex_states.size()>0)
+    { fout<<"<INITIAL";
+      for(auto s:lex_states)
+        fout<<","<<s;
+      fout<<">";
+    }
+    fout<<".|\\n\t";
+    if(lexdefault_flag==0)
+      fout<<"yyerror(lineno(),columno(),\"No rules for char \"+std::to_string(yytext[0]&0xFF));\n";
+    else if(lexdefault_flag==2)
+      fout<<";\n";
+    else
+      fout<<"return yyliteral(yytext);\n";
+  }
   fout<<"%%\n"
         "void yystart(FILE *f)\n"
         "{ yyrestart(f);\n"
@@ -1523,12 +1672,16 @@ void create_lexfile(ostream& fout,const string &fn,List<Lrule> lrules)
         "}\n";
   }
 }
+bool need_destroy(const string &t)
+{ return t=="std::string?"s || t=="std::string"s || !(t.back()=='?' || is_builtin_type(t));
+}
 void create_grmfile(ostream& fout,const string &fn, List<Grule> rules)
 {
   fout<<"%define parse.error verbose\n";
   if(locations_flag==2)
     fout<<"%locations\n";
   fout<<"%define api.pure full\n";
+  fout<<"%no-lines\n";
   if(expect_flag>=0)
     fout<<"%expect"<<expect_flag<<"\n";
   fout<<"%{\n";
@@ -1549,8 +1702,50 @@ void create_grmfile(ostream& fout,const string &fn, List<Grule> rules)
     { fout<<"%type <f"<<union_fields[s.second.tip]<<"_> "<<s.second.altname<<"\n";
     }
   }
+  string root_id;
+  match rules[0] {
+    rule grmrule(id,body):
+      if(!empty_type(symbols[id].tip)) {
+        string tip=symbols[id].tip;
+        root_id=id;
+        root_tip=tip;
+        if(tip.back()=='?') tip.pop_back();
+        fout<<"%destructor { ";
+        if(astprint_flag)
+          fout<<"if(yydebug_flag==2) ast::astprint(cout,$$); else ";
+        if(yyinterpret_flag)
+          fout<<"yyinterpret($$); ";
+        else
+          fout<<"; ";
+        if(need_destroy(tip))
+           fout<<"ast::destroy($$); ";
+        fout<<"} "<<symbols[id].altname<<"\n";
+      }
+      else
+        root_tip="";
+  }
+  for(auto &uf:union_fields)
+  { string t=uf.first;
+    if(root_tip!=""s && t==root_tip && need_destroy(t))
+    { vector<string> root_syms;
+      for(auto &sym:symbols)
+      { if(sym.second.tip==root_tip && sym.first!=root_id)
+          root_syms.push_back(sym.second.altname);
+      }
+      if(root_syms.size()>0)
+      { 
+        fout<<"%destructor { ast::destroy($$); }";
+        for(auto &sym:root_syms)
+          fout<<" "<<sym;
+        fout<<"\n";
+      }
+    }
+    else if(need_destroy(t))
+    { 
+      fout<<"%destructor { ast::destroy($$); } <f"<<uf.second<<"_>\n";
+    }
+  }
   fout<<"%%\n";
-  start_rule=1;
   for(auto r:rules)
   {
     match r {
@@ -1576,20 +1771,20 @@ void create_grmfile(ostream& fout,const string &fn, List<Grule> rules)
             }
             match act {
               rule gempty(): 
-                fout<<" { clear_attr(yyval); }\n";
+                fout<<" { yyclear_attr(yyval); }\n";
               rule gcode(cc):
-                { fout<<"\t{ clear_attr(yyval); ";
+                { fout<<"\t{ yyclear_attr(yyval);";
                   if(locations_flag==2)
-                    fout<<" set_yyloc(yyloc); ";
+                    fout<<" set_yyloc(yyloc);";
                   gen_mode=2;
-                  gen_code(fout,cc,0,elist.size());
+                  gen_code_line(fout,cc,0,elist.size());
                   fout<<" }\n";
                 }
               rule gterm(t):
-                { fout<<"\t{ ";
+                { fout<<"\t{ yyclear_attr(yyval);";
                   if(locations_flag==2)
-                    fout<<" set_yyloc(yyloc); ";
-                  if(start_rule && !empty_type(root_tip)) fout<<"yyastroot=";
+                    fout<<" set_yyloc(yyloc);";
+                  show_line(fout,t->yyloc.first_line,t->yyloc.first_column-2);
                   fout<<"$$=";
                   gen_mode=2;
                   gen_code(fout,t,elist.size());
@@ -1602,7 +1797,6 @@ void create_grmfile(ostream& fout,const string &fn, List<Grule> rules)
       }
       fout<<"\t;\n";
     }
-    start_rule=0;
   }
   fout<<"%%\n";
 }
@@ -1621,8 +1815,13 @@ void create_hfile(ostream& fout,const string &fn)
     c=toupper(c);
   fout<<"#ifndef "<<ufn<<"_H\n";
   fout<<"#define "<<ufn<<"_H 1\n";
-  if(locations_flag==2)
-    fout<<"#define AST_LOCATIONS 1\n";
+if(using_list.size()>0)
+{
+  for(auto &ul:using_list)
+    fout<<"#include \""<<ul<<".h\""<<"\n";
+}
+else
+{
   fout<<R"___(
 #ifndef ASTTYPES_H
 #define ASTTYPES_H 1
@@ -1641,14 +1840,17 @@ struct YYLTYPE {
   int last_line;
   int last_column;
 };
-#ifdef AST_LOCATIONS
-void init_yyloc(YYLTYPE &);
-#endif
 #define YYLTYPE_IS_DECLARED 1
 #define YYLTYPE_IS_TRIVIAL 1
 #endif
 
 namespace ast {
+
+template <typename T> inline void destroy(T& p) { }
+template <typename T> inline void destroy(T*& p) { if(p) delete p; p=nullptr; }
+)___";
+if(usestring_flag || usevalue_flag)
+fout<<R"___(
 template <typename T>
 class Value {
   int _assigned;
@@ -1683,43 +1885,8 @@ public:
   friend inline std::istream &operator>>(std::istream&s, Value<T> &v) { v._assigned=1; return s>>v._value; }
   friend inline std::ostream &operator<<(std::ostream&s, const Value<T> &v) { return s<<T(v); }
 };
-template <>
-class Value<std::string> {
-  size_t _len;
-  char *_str;
-  void check() const { if(!_str) throw std::logic_error("value isn't assigned"); }
-public:
-  Value()=default;
-  explicit Value(const char *s) { _len=strlen(s); _str=strdup(s); }
-  Value(const char *s, int l) { _len=l; _str=strdup(s); }
-  explicit Value(const std::string &s) { _len=s.length(); _str=strdup(s.c_str()); }
-  Value(std::nullptr_t) { _len=0; _str=nullptr; }
-  operator std::string() const { check(); return _str; }
-  operator bool() const{ return _str!=nullptr; }
-  bool operator!() const{ return !_str; }
-  const char *c_str() const { check(); return _str; }
-  size_t size() const { return _len; }
-  size_t length() const { return _len; }
-  char operator[](size_t i) const { check(); return _str[i]; }
-  char at(size_t i) const { check(); if(i>=_len) throw std::out_of_range("index out of range"); return _str[i]; }
-  std::string substr(size_t i, size_t n=std::string::npos) const { return ((std::string)_str).substr(i,n); }
-  Value<std::string> &operator=(const std::string& s) { _len=s.length(); _str=strdup(s.c_str()); return *this; }
-  Value<std::string> &operator=(const char *s) { _len=strlen(s); _str=strdup(s); return *this; }
-  Value<std::string> &operator=(std::nullptr_t) { _len=0; _str=nullptr; return *this; }
-  Value<std::string> &operator=(const Value<std::string>& v)=default;
-  Value<std::string> &operator+=(const std::string& s) { check(); (*this)=(std::string)_str+s; return *this; }
-  Value<std::string> &operator+=(const char *s) { check(); (*this)=(std::string)_str+(std::string)s; return *this; }
-  Value<std::string> &operator+=(char c) { check(); (*this)=(std::string)_str+std::string(1,c); return *this; }
-  friend inline std::istream &operator>>(std::istream&s, Value<std::string> &v) { std::string x; s>>x; v=x; return s; }
-  friend inline std::ostream &operator<<(std::ostream&s, const Value<std::string> &v) { v.check(); return s<<v._str; }
-};
 template <typename T>
 inline T operator+(const Value<T>& v1, const Value<T>& v2) { return T(v1)+T(v2); }
-template <typename T>
-inline T operator+(const T &v1, const Value<T>& v2) { return v1+T(v2); }
-template <typename T>
-inline T operator+(const Value<T>& v1, const T& v2) { return T(v1)+v2; }
-
 template <typename T>
 inline Value<T> operator-(Value<T> v1, const Value<T>& v2) { return v1-=v2; }
 template <typename T>
@@ -1738,24 +1905,12 @@ template <typename T>
 inline Value<T> operator|(Value<T> v1, const Value<T>& v2) { return v1|=v2; }
 template <typename T>
 inline Value<T> operator^(Value<T> v1, const Value<T>& v2) { return v1^=v2; }
-
 template <typename T>
 bool operator==(const Value<T> &v1, const Value<T>& v2) {
    if(!v1 && !v2) return 1;
    if(!v1 || !v2) return 0;
    return  T(v1)==T(v2); 
 }
-template <typename T>
-bool operator==(const T &v1, const Value<T>& v2) { 
-  if(!v2) return 0;
-  return v1==T(v2); 
-}
-template <typename T>
-bool operator==(const Value<T> &v1, const T& v2) {
-  if(!v1) return 0;
-  return T(v1)==v2; 
-}
-
 template <typename T>
 bool operator<(const Value<T> &v1, const Value<T>& v2) { 
   if(!v1 && !v2) return 0;
@@ -1764,44 +1919,13 @@ bool operator<(const Value<T> &v1, const Value<T>& v2) {
   return T(v1)<T(v2); 
 }
 template <typename T>
-bool operator<(const T &v1, const Value<T>& v2) { 
-  if(!v2) return 0;
-  return v1<T(v2); 
-}
-template <typename T>
-bool operator<(const Value<T> &v1, const T& v2) { 
-  if(!v1) return 1;
-  return T(v1)<v2; 
-}
-
-template <typename T>
 inline bool operator!=(const Value<T> &v1, const Value<T>& v2) { return !(v1==v2); }
-template <typename T>
-inline bool operator!=(const T &v1, const Value<T>& v2) { return !(v1==v2); }
-template <typename T>
-inline bool operator!=(const Value<T> &v1, const T& v2) { return !(v1==v2); }
-
 template <typename T>
 inline bool operator>(const Value<T> &v1, const Value<T>& v2) { return v2<v1; }
 template <typename T>
-inline bool operator>(const T &v1, const Value<T>& v2) { return v2<v1; }
-template <typename T>
-inline bool operator>(const Value<T> &v1, const T& v2) { return v2<v1; }
-
-template <typename T>
 inline bool operator<=(const Value<T> &v1, const Value<T>& v2) { return !(v2<v1); }
 template <typename T>
-inline bool operator<=(const T &v1, const Value<T>& v2) { return !(v2<v1); }
-template <typename T>
-inline bool operator<=(const Value<T> &v1, const T& v2) { return !(v2<v1); }
-
-template <typename T>
 inline bool operator>=(const Value<T> &v1, const Value<T>& v2) { return !(v1<v2); }
-template <typename T>
-inline bool operator>=(const T &v1, const Value<T>& v2) { return !(v1<v2); }
-template <typename T>
-inline bool operator>=(const Value<T> &v1, const T& v2) { return !(v1<v2); }
-
 template <typename T>
 Value<T> &operator++(Value<T> &v, int)
 { Value<T> v2(v);
@@ -1814,16 +1938,98 @@ Value<T> &operator--(Value<T> &v, int)
   --v;
   return v2;
 }
-
+)___";
+if(usestring_flag)
+fout<<R"___(
+template <>
+class Value<std::string> {
+  size_t _len;
+  char *_str;
+  void check() const { if(!_str) throw std::logic_error("value isn't assigned"); }
+  void del_ptr() { if(_str) free(_str); _str=nullptr; _len=0; }
+  void new_ptr(const char *s, size_t l) { _len=l; if(s) _str=strdup(s); else _str=nullptr; }
+public:
+  Value()=default;
+  explicit Value(const char *s) { new_ptr(s,strlen(s)); }
+  Value(const char *s, int l) { new_ptr(s,l); }
+  explicit Value(const std::string &s) { new_ptr(s.c_str(),s.length()); }
+  Value(std::nullptr_t) { new_ptr(nullptr,0); }
+  operator std::string() const { check(); return _str; }
+  operator bool() const{ return _str!=nullptr; }
+  bool operator!() const{ return !_str; }
+  const char *c_str() const { check(); return _str; }
+  size_t size() const { check(); return _len; }
+  size_t length() const { check(); return _len; }
+  char operator[](size_t i) const { check(); return _str[i]; }
+  char at(size_t i) const { check(); if(i>=_len) throw std::out_of_range("index out of range"); return _str[i]; }
+  std::string substr(size_t i, size_t n=std::string::npos) const { check(); return ((std::string)_str).substr(i,n); }
+  Value<std::string> &operator=(const std::string& s) { del_ptr(); new_ptr(s.c_str(),s.length()); return *this; }
+  Value<std::string> &operator=(const char *s) { del_ptr(); new_ptr(s,strlen(s)); return *this; }
+  Value<std::string> &operator=(std::nullptr_t) { del_ptr(); new_ptr(nullptr,0); return *this; }
+  Value<std::string> &operator=(const Value<std::string>& v)=default;
+  Value<std::string> &operator+=(const std::string& s) { check(); (*this)=(std::string)_str+s; return *this; }
+  Value<std::string> &operator+=(const char *s) { check(); (*this)=(std::string)_str+(std::string)s; return *this; }
+  Value<std::string> &operator+=(char c) { check(); (*this)=(std::string)_str+std::string(1,c); return *this; }
+  friend inline std::istream &operator>>(std::istream&s, Value<std::string> &v) { std::string x; s>>x; v=x; return s; }
+  friend inline std::ostream &operator<<(std::ostream&s, const Value<std::string> &v) { v.check(); return s<<v._str; }
+  friend inline void destroy(Value<std::string> &v) { v.del_ptr(); }
+};
+template <typename T>
+inline T operator+(const T &v1, const Value<T>& v2) { return v1+T(v2); }
+template <typename T>
+inline T operator+(const Value<T>& v1, const T& v2) { return T(v1)+v2; }
+template <typename T>
+bool operator==(const T &v1, const Value<T>& v2) { 
+  if(!v2) return 0;
+  return v1==T(v2); 
+}
+template <typename T>
+bool operator==(const Value<T> &v1, const T& v2) {
+  if(!v1) return 0;
+  return T(v1)==v2; 
+}
+template <typename T>
+bool operator<(const T &v1, const Value<T>& v2) { 
+  if(!v2) return 0;
+  return v1<T(v2); 
+}
+template <typename T>
+bool operator<(const Value<T> &v1, const T& v2) { 
+  if(!v1) return 1;
+  return T(v1)<v2; 
+}
+template <typename T>
+inline bool operator!=(const T &v1, const Value<T>& v2) { return !(v1==v2); }
+template <typename T>
+inline bool operator!=(const Value<T> &v1, const T& v2) { return !(v1==v2); }
+template <typename T>
+inline bool operator>(const T &v1, const Value<T>& v2) { return v2<v1; }
+template <typename T>
+inline bool operator>(const Value<T> &v1, const T& v2) { return v2<v1; }
+template <typename T>
+inline bool operator<=(const T &v1, const Value<T>& v2) { return !(v2<v1); }
+template <typename T>
+inline bool operator<=(const Value<T> &v1, const T& v2) { return !(v2<v1); }
+template <typename T>
+inline bool operator>=(const T &v1, const Value<T>& v2) { return !(v1<v2); }
+template <typename T>
+inline bool operator>=(const Value<T> &v1, const T& v2) { return !(v1<v2); }
+)___";
+if(uselist_flag)
+fout<<R"___(
 template <typename T> class List;
 template <typename T> List<T> cons(const T& p);
 template <typename T> List<T> cons(List<T> l, const T& p);
 template <typename T> List<T> cons(const T& p, List<T> l);
-
+)___";
+if(uselist_flag && (usestring_flag || usevalue_flag))
+fout<<R"___(
 template <typename T> List<T> cons(const Value<T> &p);
 template <typename T> List<T> cons(List<T> l, const Value<T> &p);
 template <typename T> List<T> cons(const Value<T> & p, List<T> l);
-
+)___";
+if(uselist_flag)
+fout<<R"___(
 template <typename T> List<T> cons(List<T> l1, List<T> l2);
 template <typename T> List<T> begin(List<T> l);
 template <typename T> List<T> end(List<T> l);
@@ -1852,11 +2058,15 @@ public:
   friend List<T> cons<T>(const T& p);
   friend List<T> cons<T>(List<T> l, const T& p);
   friend List<T> cons<T>(const T& p, List<T> l);
-  
+)___";
+if(uselist_flag && (usestring_flag || usevalue_flag))
+fout<<R"___(
   friend List<T> cons<T>(const Value<T> &p);
   friend List<T> cons<T>(List<T> l, const Value<T> &p);
   friend List<T> cons<T>(const Value<T> & p, List<T> l);
-  
+)___";
+if(uselist_flag)
+fout<<R"___(
   template <typename Z> friend  List<Z*> cons(Z *p);
   template <typename Z> friend List<Z*> cons(List<Z*> l, Z *p);
   template <typename Z> friend List<Z*> cons(Z* p, List<Z*> l);
@@ -1869,6 +2079,12 @@ public:
   operator bool() const { return first!=nullptr; }
   bool operator!() const { return first==nullptr; }
 };
+template <typename T> 
+void destroy(List<T> &l) {  
+  for(auto &x:l)
+    destroy(x);
+  l=nullptr;
+}
 template <typename T>
 List<T>::List(std::initializer_list<T> v)
 { first=nullptr;
@@ -1925,6 +2141,9 @@ inline List<T> cons(List<T> l)
 {
   return l;
 }
+)___";
+if(uselist_flag && (usestring_flag || usevalue_flag))
+fout<<R"___(
 template <typename T>
 List<T> cons(const Value<T> & p)
 { List<T> r(nullptr);
@@ -1955,7 +2174,9 @@ List<T> cons(const Value<T> &p, List<T> l)
   r._size=l._size+1;
   return r;
 }
-
+)___";
+if(uselist_flag)
+fout<<R"___(
 template <typename T>
 List<T *> cons(T* p)
 { List<T*> r(nullptr);
@@ -2030,30 +2251,43 @@ inline List<T> operator++(List<T> &l, int)
   ++l;
   return r;
 }
-
+)___";
+  if(locations_flag==2)
+fout<<R"___(
+extern YYLTYPE yylloc;
+void init_yyloc(YYLTYPE &);
+void set_yyloc(const YYLTYPE&);
+void set_yyloc(int, int);
+)___";
+fout<<R"___(
 #ifndef AST_BASE_DOMAIN
 #define AST_BASE_DOMAIN 1
 struct _domain {
-#ifdef AST_LOCATIONS
+)___";
+if(locations_flag==2)
+fout<<R"___(
   YYLTYPE yyloc;
   _domain() { init_yyloc(yyloc); }
-#endif
+)___";
+fout<<R"___(
   virtual ~_domain(){}
 };
 #endif
 }
 #endif
 )___";
-  fout<<"using namespace ast;\n";
+}
   if(domains.size()>0)
   {
   fout<<"namespace ast {\n";
   for(auto &d:domains)
   { 
-    fout<<"struct "<<d.first<<"_visitor;\n";
-    fout<<"struct "<<d.first<<"_domain : _domain {\n"
-      "\tvirtual void accept("<<d.first<<"_visitor*, void*)=0;\n"
-      "};\n";
+    if(visitor_flag==2)
+      fout<<"struct "<<d.first<<"_visitor;\n";
+    fout<<"struct "<<d.first<<"_domain : _domain {\n";
+    if(visitor_flag==2)
+      fout<<"\tvirtual void accept("<<d.first<<"_visitor*, void*)=0;\n";
+    fout<<"};\n";
     fout<<"typedef "<<d.first<<"_domain *"<<d.first<<";\n";
     if(astprint_flag)
       fout<<"int astprint(std::ostream&, "<<d.first<<", int=0, const char* =nullptr);\n";
@@ -2085,7 +2319,18 @@ struct _domain {
     else
       fout<<")";
     fout<<"{}\n";
-    fout<<"\tvoid accept("<<n.second.types[0]<<"_visitor*, void*);\n";
+    fout<<"\t~"<<n.first<<"_node() {\n";
+    for(int j=1;j<n.second.types.size();++j)
+    { string t=n.second.types[j];
+      if(t=="std::string"s) ;
+      else if(need_destroy(t))
+      {
+        fout<<"\t  destroy(f"<<j<<"_);\n";
+      }
+    }
+    fout<<"\t}\n";
+    if(visitor_flag==2)
+      fout<<"\tvoid accept("<<n.second.types[0]<<"_visitor*, void*);\n";
     fout<<"};\n";
   }
   for(auto &n:nodes)
@@ -2108,76 +2353,89 @@ struct _domain {
     fout<<");\n"
         <<"}\n";
   }
-  for(auto &d:domains)
-  { 
-    fout<<"struct "<<d.first<<"_visitor {\n\tvirtual ~"<<d.first<<"_visitor(){}\n";
-    for(auto &n:d.second.nodes)
-    { fout<<"\tvirtual void visit("<<n<<"_node*, void*) {}\n";
+  if(visitor_flag==2)
+  {
+    for(auto &d:domains)
+    { 
+      fout<<"struct "<<d.first<<"_visitor {\n\tvirtual ~"<<d.first<<"_visitor(){}\n";
+      for(auto &n:d.second.nodes)
+      { fout<<"\tvirtual void visit("<<n<<"_node*, void*) {}\n";
+      }
+      fout<<"};\n";
+      fout<<"template <typename T> struct "<<d.first<<"_Tvisitor: "<<d.first<<"_visitor {\n";
+      fout<<"\tT operator()("<<d.first<<" v){ T r; if(v) v->accept(this,&r); return r; }\n";
+      for(auto &n:d.second.nodes)
+      { fout<<"\tvirtual T visit("<<n<<"_node*) { return T(); }\n";
+        fout<<"\tvoid visit("<<n<<"_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }\n";
+      }
+      fout<<"};\n";
+      fout<<"template <> struct "<<d.first<<"_Tvisitor<void>: "<<d.first<<"_visitor {\n";
+      fout<<"\tvoid operator()("<<d.first<<" v){ if(v) v->accept(this,nullptr); }\n";
+      for(auto &n:d.second.nodes)
+      { fout<<"\tvirtual void visit("<<n<<"_node*) {}\n";
+        fout<<"\tvoid visit("<<n<<"_node* n,void* r) { visit(n); }\n";
+      }
+      fout<<"};\n";
     }
-    fout<<"};\n";
-    fout<<"template <typename T> struct "<<d.first<<"_Tvisitor: "<<d.first<<"_visitor {\n";
-    fout<<"\tT operator()("<<d.first<<" v){ T r; if(v) v->accept(this,&r); return r; }\n";
-    for(auto &n:d.second.nodes)
-    { fout<<"\tvirtual T visit("<<n<<"_node*) { return T(); }\n";
-      fout<<"\tvoid visit("<<n<<"_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }\n";
+    for(auto &n:nodes)
+    { 
+      fout<<
+        "inline void "<<n.first<<"_node::accept("<<n.second.types[0]<<"_visitor* v, void* r) {\n"
+        "\tv->visit(this, r);\n}\n";
     }
-    fout<<"};\n";
-    fout<<"template <> struct "<<d.first<<"_Tvisitor<void>: "<<d.first<<"_visitor {\n";
-    fout<<"\tvoid operator()("<<d.first<<" v){ if(v) v->accept(this,nullptr); }\n";
-    for(auto &n:d.second.nodes)
-    { fout<<"\tvirtual void visit("<<n<<"_node*) {}\n";
-      fout<<"\tvoid visit("<<n<<"_node* n,void* r) { visit(n); }\n";
-    }
-    fout<<"};\n";
-  }
-  for(auto &n:nodes)
-  { 
-    fout<<
-      "inline void "<<n.first<<"_node::accept("<<n.second.types[0]<<"_visitor* v, void* r) {\n"
-      "\tv->visit(this, r);\n}\n";
   }
   fout<<"}\n";
   }
+  fout<<"using namespace ast;\n";
+if(using_list.size()==0 && ast_flag==0)
+{
   if(locations_flag==1)
     fout<<"extern int yylineno;\n";
   fout<<"int yyliteral(const std::string&);\n"
-        "extern int yydebug_flag;\n"
         "void yystart(FILE *);\n"
         "void yystart(std::istream&);\n"
         "int yywrap();\n"
-        "int yyparse();\n"
-        "extern const char* yyinputfile;\n"
-        "extern char** yyargv;\n"
-        "extern int yyargc;\n";
+        "int yyparse();\n";
+  if(main_flag)
+    fout<<"extern const char* yyinputfile;\n"
+          "extern int yydebug_flag;\n";
   if(union_fields.size()>0)
   { fout<<"union YYSTYPE {\n";
     for(auto &f:union_fields)
       fout<<"  "<<to_field_type(f.first)<<" f"<<f.second<<"_;\n";
-    fout<<"};\n"
+    fout<<"};\n";
+  }
+  else
+    fout<<"typedef int YYSTYPE;\n";
+  fout<<"inline void yyclear_attr(YYSTYPE&v) { memset(&v,0,sizeof(v)); }\n"
           "#define YYSTYPE_IS_TRIVIAL 1\n"
           "#define YYSTYPE_IS_DECLARED 1\n";
-  }
-  if(!empty_type(root_tip))
-    fout<<"extern "<<to_field_type(root_tip)<<" yyastroot;\n";
+  if(locations_flag==2)
+    fout<<"int yylex(YYSTYPE*, YYLTYPE*);\n";
+  else
+    fout<<"int yylex(YYSTYPE*);\n";
   if(lexprint_flag)
     fout<<"void lexprint(std::ostream&, int, YYSTYPE&);\n";
-  fout<<"void clear_attr(YYSTYPE&);\n"
-        "void yyerror(const std::string &);\n"
-        "void yyerror(int, int, const std::string&);\n";
+}
+if(using_list.size()==0)
+{
+  fout<<"void yyerror(const std::string &);\n";
+  if(locations_flag)
+    fout<<"void yyerror(int, int, const std::string&);\n";
   if(locations_flag==2)
-    fout<<"int yylex(YYSTYPE*, YYLTYPE*);\n"
-          "void yyerror(YYLTYPE*, const char*);\n"
-          "void set_yyloc(const YYLTYPE&);\n"
-          "void set_yyloc(int, int);\n";
+    fout<<"void yyerror(YYLTYPE*, const char*);\n";
   else
-    fout<<"int yylex(YYSTYPE*);\n"
-          "void yyerror(const char*);\n";
-  gen_mode=0;
-  gen_code(fout,hcode,0,0);
-  if(astprint_flag || lexprint_flag)
+    fout<<"void yyerror(const char*);\n";
+}
+if(yyinterpret_flag && root_tip!="")
+  fout<<"void yyinterpret("<<type_mark(root_tip,1)<<");\n";
+
+gen_mode=0;
+gen_code_line(fout,hcode,0,0);
+
+if((astprint_flag || lexprint_flag) && using_list.size()==0)
+{
     fout<<R"___(
-#ifndef ASTPRINT_H
-#define ASTPRINT_H 1
 namespace ast {
 #ifndef ASTPRINT_BUILTIN
 #define ASTPRINT_BUILTIN 1
@@ -2198,9 +2456,9 @@ static int astprint(std::ostream &s, char v, int=0, const char *p=nullptr)
   return 0;
 }
 static int astprint(std::ostream &s, const std::string &v, int=0, const char *p=nullptr)
-{ s<<"\"";
+{ s<<'\"';
   for(auto x:v) print_char(s,x);
-  s<<"\"";
+  s<<'\"';
   if(p) s<<p;
   return 0;
 }
@@ -2211,6 +2469,9 @@ inline int astprint(std::ostream &s, T v, int=0, const char *p=nullptr)
   return 0;
 }
 #endif
+)___";
+if(usevalue_flag || usestring_flag)
+fout<<R"___(
 template <typename T>
 int astprint(std::ostream &s, Value<T> v, int=0, const char *p=nullptr)
 { if(!v) s<<"nullptr";
@@ -2218,6 +2479,9 @@ int astprint(std::ostream &s, Value<T> v, int=0, const char *p=nullptr)
   if(p) s<<p;
   return 0;
 }
+)___";
+if(uselist_flag)
+fout<<R"___(
 template <typename T>
 int astprint(std::ostream &s, List<T> v, int i=0, const char *p=nullptr)
 { bool fl=0, r=0;
@@ -2233,58 +2497,45 @@ int astprint(std::ostream &s, List<T> v, int i=0, const char *p=nullptr)
   if(p) s<<p;
   return r;
 }
-}
-#endif
 )___";
+fout<<"}\n";
+}
   fout<<"#endif\n";
 }
 void create_cppfile(ostream& fout,const string &fn, List<Code> code)
 {
   fout<<"#include \""<<fn<<".h\"\n";
   gen_mode=0;
-  gen_code(fout,code,0,0);
+  gen_code_line(fout,code,0,0);
   fout<<vout.str();
   vout.clear();
-  unsigned cset[8]={0};
-  fout<<"#include <map>\nstatic std::map<std::string,int> yyliterals{\n";
-  int flg=0;
-  for(auto &s:symbols)
-  { if(isliteral(s.first))
-    { string t=decode_string(s.first.substr(1,s.first.size()-2));
-      if(s.second.terminalnumber>0)
-      { if(flg) fout<<",\n";
-        fout<<"\t{\""<<encode_string(t,0)<<"\","<<s.second.terminalnumber<<"}";
-        flg=1;
-      }
-      else
-      { int c=t[0]&0xFF;
-        cset[c>>5]|=1<<(c&31);
+  if(using_list.size()==0 && ast_flag==0)
+  {
+    unsigned cset[8]={0};
+    fout<<"#include <map>\nstatic std::map<std::string,int> yyliterals{\n";
+    int flg=0;
+    for(auto &s:symbols)
+    { if(isliteral(s.first))
+      { string t=decode_string(s.first.substr(1,s.first.size()-2));
+        if(s.second.terminalnumber>0)
+        { if(flg) fout<<",\n";
+          fout<<"\t{\""<<encode_string(t,0)<<"\","<<s.second.terminalnumber<<"}";
+          flg=1;
+        }
+        else
+        { int c=t[0]&0xFF;
+          cset[c>>5]|=1<<(c&31);
+        }
       }
     }
-  }
-  fout<<"};\n";
-  fout<<"static unsigned yyliteral1[8]={";
-  for(int i=0;i<8;++i) {
-    fout<<cset[i]<<"u";
-    if(i<7) fout<<",";
-  }
-  fout<<"};\n";
-  if(locations_flag==2)
-  {
-    fout<<"static YYLTYPE yyloc_save;\n"
-          "static int yyline_save,yycolumn_save;\n"
-          "void set_yyloc(const YYLTYPE& yyloc)\n"
-          "{ yyloc_save=yyloc; }\n"
-          "void init_yyloc(YYLTYPE& yyloc)\n"
-          "{ yyloc=yyloc_save; }\n"
-          "void set_yyloc(int l, int c)\n"
-          "{ yyloc_save.first_line=yyline_save;\n"
-          "  yyloc_save.first_column=yycolumn_save;\n"
-          "  yyloc_save.last_line=yyline_save=l;\n"
-          "  yyloc_save.last_column=yycolumn_save=c;\n"
-          "}\n";
-  }
-  fout<<"int yyliteral(const std::string&s) {\n"
+    fout<<"};\n";
+    fout<<"static unsigned yyliteral1[8]={";
+    for(int i=0;i<8;++i) {
+      fout<<cset[i]<<"u";
+      if(i<7) fout<<",";
+    }
+    fout<<"};\n";
+    fout<<"int yyliteral(const std::string&s) {\n"
         "  if(s.length()==0) return 0;\n"
         "  if(s.length()==1)\n"
         "  { int c=s[0]&0xFF;\n"
@@ -2294,7 +2545,8 @@ void create_cppfile(ostream& fout,const string &fn, List<Code> code)
         "  if(it==yyliterals.end()) return 1;\n"
         "  return it->second;\n"
         "}\n";
-  if(yyerror_flag)
+  }
+  if(yyerror_flag && using_list.size()==0)
   {
     if(locations_flag==2)
       fout<<"void yyerror(YYLTYPE *yylloc, const char* msg)\n{ yyerror(yylloc->last_line,yylloc->last_column,msg); }\n";
@@ -2305,8 +2557,9 @@ void create_cppfile(ostream& fout,const string &fn, List<Code> code)
     fout<<"void yyerror(const std::string& msg)\n"
           "{ std::cerr<<msg<<\"\\n\";\n"
           "  exit(1);\n"
-          "}\n"
-          "void yyerror(int l, int c, const std::string& msg)\n"
+          "}\n";
+    if(locations_flag)
+    fout<<"void yyerror(int l, int c, const std::string& msg)\n"
           "{\n"
           "  std::cerr<<yyinputfile<<':'<<l<<':'<<c<<\": \";\n"
           "  std::cerr<<msg<<\"\\n\";\n"
@@ -2317,59 +2570,51 @@ void create_cppfile(ostream& fout,const string &fn, List<Code> code)
   {
     fout<<"int yydebug_flag=0;\n"
           "const char* yyinputfile=\"\";\n"
-          "char** yyargv;\n"
-          "int yyargc;\n"
-          "int main(int argc, char **argv)\n"
-          "{ yyargc=argc; yyargv=argv;\n"
-          "  while(argc>1 && argv[1][0]=='-')\n"
-          "  { if(argv[1][1]=='d') yydebug_flag=argv[1][2]-'0';\n"
-          "    --argc; ++argv;\n"
-          "  }\n"
-          "  if(argc>1)\n"
-          "  { FILE *f=fopen(yyinputfile=argv[1],\"r\");\n"
-          "    if(f) yystart(f);\n"
-          "    else { std::cerr<<\"Can't open file \"<<argv[1]<<std::endl; exit(1); }\n"
-          "  }\n";
-    if(lexprint_flag)
-    { 
-      fout<<"  if(yydebug_flag==1) {\n"
-            "    int t;\n"
-            "    YYSTYPE yylval;\n";
-      if(locations_flag==2)
-        fout<<"    YYLTYPE yylloc;\n"
-              "    while(t=yylex(&yylval,&yylloc)) {\n";
-      else  
-        fout<<"    while(t=yylex(&yylval)) {\n";
-      fout<<"      lexprint(std::cout,t,yylval); std::cout<<std::endl;\n"
-            "    }\n"
-            "  }\n"
-            "  else\n";
-    }
-    if(astprint_flag && !empty_type(root_tip))
-    { 
-      fout<<"  {  int r=yyparse();\n"
-            "     if(!r && yydebug_flag==2) astprint(cout,yyastroot);\n"
-            "     return r; }\n";
-    }
-    else
-      fout<<"  return yyparse();\n";
-    fout<<"}\n";
-  }
-  if(!grmfile_exist)
-  {
-    fout<<"int yyparse()\n"
-          "{ YYSTYPE yylval;\n";
+          "int yylex_loop()\n"
+          "{ int t;\n"
+          "  YYSTYPE yylval;\n";
     if(locations_flag==2)
-    {
       fout<<"  YYLTYPE yylloc;\n"
-            "  while(yylex(&yylval,&yylloc));\n";
-    }
+            "  while(t=yylex(&yylval,&yylloc))\n";
     else  
-      fout<<"  while(yylex(&yylval));\n";
+      fout<<"  while(t=yylex(&yylval))\n";
+    if(lexprint_flag)
+      fout<<"    if(yydebug_flag==1) {\n"
+            "      lexprint(std::cout,t,yylval); std::cout<<std::endl;\n"
+            "    }\n";
+    else
+      fout<<"    ;\n";
     fout<<"  return 0;\n"
+          "}\n"
+          "int yyparse_file(const char* name)\n"
+          "{ if(name[0])\n"
+          "  { FILE *f=fopen(name,\"r\");\n"
+          "    if(!f) yyerror(\"Can't open file \"+std::string(name));\n"
+          "    else yystart(f);\n"
+          "  }\n"
+          "  yyinputfile=name;\n"
+          "#ifdef YYINIT\n"
+          "  YYINIT(name);\n"
+          "#endif\n";
+    if(!grmfile_exist && yyparse_flag)
+      fout<<"  return yylex_loop();\n";
+    else
+      fout<<"  return (yydebug_flag==1)?yylex_loop():yyparse();\n";
+    fout<<"}\n"
+          "int main(int argc, char **argv)\n"
+          "{\n"
+          "#ifdef YYARGINIT\n"
+          "  YYARGINIT(argc,argv);\n"
+          "#endif\n"
+          "  for(int i=1; i<argc; ++i)\n"
+          "    if(argv[i][0]=='-')\n"
+          "    { if(argv[i][1]=='d') yydebug_flag=argv[i][2]-'0';\n"
+          "    }\n"
+          "    else if(yyparse_file(argv[i])) return 1;\n"
+          "  if(!yyinputfile[0]) return yyparse_file(\"\"); \n"
           "}\n";
   }
-  if(lexprint_flag)
+  if(lexprint_flag && using_list.size()==0)
   {
     fout<<"void lexprint(std::ostream &s, int t,YYSTYPE& a) {\n"
           "  if(t==1) s<<\"undef\";\n"
@@ -2388,11 +2633,24 @@ void create_cppfile(ostream& fout,const string &fn, List<Code> code)
     }
     fout<<"  }\n}\n";
   }
-  if(!empty_type(root_tip))
-    fout<<to_field_type(root_tip)<<" yyastroot;\n";
-  fout<<
-    "void clear_attr(YYSTYPE&v) { memset(&v,0,sizeof(YYSTYPE)); }\n";
-  if(astprint_flag)
+  if(locations_flag==2 &&  using_list.size()==0)
+  {
+    fout<<"namespace ast {\n"
+          "YYLTYPE yylloc;\n"
+          "static int yyline_save,yycolumn_save;\n"
+          "void set_yyloc(const YYLTYPE& yyloc)\n"
+          "{ yylloc=yyloc; }\n"
+          "void init_yyloc(YYLTYPE& yyloc)\n"
+          "{ yyloc=yylloc; }\n"
+          "void set_yyloc(int l, int c)\n"
+          "{ yylloc.first_line=yyline_save;\n"
+          "  yylloc.first_column=yycolumn_save;\n"
+          "  yylloc.last_line=yyline_save=l;\n"
+          "  yylloc.last_column=yycolumn_save=c;\n"
+          "}\n"
+          "}\n";
+  }
+  if(astprint_flag && domains.size()>0)
   {
     fout<<"namespace ast {\n";
     for(auto &d:domains)
@@ -2773,8 +3031,15 @@ void calc_types(List<Grule> grules)
     cout<<"Assigned types:\n";
   for(auto &n:nodes)
   { for(auto &t:n.second.types)
-      if(empty_type(t) && bad_node==""s)
-        bad_node=n.first;
+      if(empty_type(t))
+      { if(bad_node==""s) bad_node=n.first;
+      }
+      else
+      { if(t.back()=='?') usevalue_flag=1;
+        if(t=="std::string?"s) usestring_flag=1;
+        if(t.substr(0,5)=="List<"s) uselist_flag=1;
+      }
+      
     if(yydebug_flag==3)
     {
       cout<<n.first<<"(";
@@ -2794,9 +3059,15 @@ void calc_types(List<Grule> grules)
     }
     if(!empty_type(s.second.tip))
     { 
-      if(union_fields.find(s.second.tip)==union_fields.end())
+      string t=s.second.tip;
+
+      if(t.back()=='?') usevalue_flag=1;
+      if(t.substr(0,11)=="std::string"s) usestring_flag=1;
+      if(t.substr(0,5)=="List<"s) uselist_flag=1;
+
+      if(union_fields.find(t)==union_fields.end())
       { int k=union_fields.size()+1;
-        union_fields[s.second.tip]=k;
+        union_fields[t]=k;
       }
     }
   }
@@ -2808,7 +3079,7 @@ void calc_types(List<Grule> grules)
   if(bad_node!=""s)
     yyerror("Type of "s+bad_node+" is undefined"s);
 }
-void generate(const string &fn, const string &fp, Program prg)
+void yyinterpret(Program prg)
 { match prg {
     rule prog(decls,lrules,grules,code):
     {
@@ -2822,6 +3093,8 @@ void generate(const string &fn, const string &fp, Program prg)
       collect_terminals(grules);
       collect_terminals(code);
 
+      new_rules=nullptr;
+
       calc_types(lrules);
       setup_default(grules);
 
@@ -2833,33 +3106,33 @@ void generate(const string &fn, const string &fp, Program prg)
       if(yydebug_flag==4) { astprint(cout,grules); return; }
 
       calc_types(grules);
-      if(grules)
-        match grules[0] {
-          rule grmrule(id,body):
-            root_tip=symbols[id].tip;
-        }
       gen_altnames();
       if(yydebug_flag) return;
 
       
       ofstream fout;
+      if(lexdefault_flag==-1)
+      {
+        if(grules) lexdefault_flag=3;
+        else lexdefault_flag=1;
+      }
       if(yylex_flag)
       { lexfile_exist=1;
-        fout.open(fp+fn+".lex"s);
-        create_lexfile(fout,fn,lrules);
+        fout.open(filepath+filename+".lex"s);
+        create_lexfile(fout,filename,lrules);
         fout.close();
       }
       if(grules && yyparse_flag)
       { grmfile_exist=1;
-        fout.open(fp+fn+".grm"s);
-        create_grmfile(fout,fn,grules);
+        fout.open(filepath+filename+".grm"s);
+        create_grmfile(fout,filename,grules);
         fout.close();
       }
-      fout.open(fp+fn+".h"s);
-      create_hfile(fout,fn);
+      fout.open(filepath+filename+".cpp"s);
+      create_cppfile(fout,filename,code);
       fout.close();
-      fout.open(fp+fn+".cpp"s);
-      create_cppfile(fout,fn,code);
+      fout.open(filepath+filename+".h"s);
+      create_hfile(fout,filename);
       fout.close();
     }
   }
