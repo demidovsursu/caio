@@ -1787,6 +1787,8 @@ void gen_lexrules(ostream& fout, List<Lrule> rules)
              }
              else if(it->second.tip=="std::string"s || it->second.tip=="std::string?"s)
                fout<<" yylval.f"<<to_string(rf)<<"_=yytext; ";
+             else if(it->second.tip=="char"s || it->second.tip=="char?"s)
+               fout<<" yylval.f"<<to_string(rf)<<"_=yytext[0]; ";
              fout<<" return ";
              auto idt=symbols.find(nid);
              if(idt->second.terminalnumber>0)
@@ -1891,7 +1893,15 @@ public: YYLTYPE yylloc;
     for(auto s:symbols)
     { if(isliteral(s.first))
       {
-        fout<<literal_to_re(s.first)<<"\treturn ";
+        fout<<literal_to_re(s.first)<<"\t";
+        int rf=0;
+        if(!empty_type(s.second.tip))
+          rf=union_fields[s.second.tip];
+        if(s.second.tip=="std::string"s || s.second.tip=="std::string?"s)
+          fout<<"yylval.f"<<to_string(rf)<<"_=yytext; ";
+        else if(s.second.tip=="char"s || s.second.tip=="char?"s)
+          fout<<"yylval.f"<<to_string(rf)<<"_=yytext[0]; ";
+        fout<<"return ";
         if(s.second.terminalnumber>0)
           fout<<s.second.terminalnumber;
         else 
