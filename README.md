@@ -5,7 +5,7 @@ Caio translates the language definition to Flex, Bison and C++ files.
 
 I recommend using [RE/flex](https://www.genivia.com/doc/reflex/html/index.html) instead of Flex, since it has a better implementation RE.
 
-Directory src/ contains Caio's sourse. Use the previous generated files from directory build/ to build Caio's executable file. Run "make  rebuild" to generate files from changed Caio's source. 
+Directory src/ contains Caio's source. Use the previous generated files from directory build/ to build Caio's executable file. Run "make  rebuild" to generate files from changed Caio's source. 
 
 See the code of the mini-Basic interpreter.
 ```cpp
