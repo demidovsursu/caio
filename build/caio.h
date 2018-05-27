@@ -9,18 +9,24 @@
 #include <string>
 #include <iostream>
 #include <exception>
+#include <utility>
+#include <vector>
 #include <initializer_list>
 
-#ifndef YYLTYPE_IS_DECLARED
+struct YYPTYPE {
+  int line;
+  short file, column;
+};
 struct YYLTYPE {
-  int first_line;
-  int first_column;
-  int last_line;
-  int last_column;
+  YYPTYPE first,last;
+  YYLTYPE(int fl=0,int fc=0,int ll=0,int lc=0, int ff=0){ 
+     first.line=fl; first.column=fc;
+     last.line=ll; last.column=lc;
+     first.file=last.file=ff;
+  }
 };
 #define YYLTYPE_IS_DECLARED 1
 #define YYLTYPE_IS_TRIVIAL 1
-#endif
 
 namespace ast {
 
@@ -203,6 +209,8 @@ template <typename T> List<T> begin(List<T> l);
 template <typename T> List<T> end(List<T> l);
 template <typename T> bool operator==(const List<T> &l, const List<T> &r);
 template <typename T> List<T> &operator++(List<T> &l);
+template <typename T> void destroy(List<T> &l);
+
 template <typename T>
 class List {
   struct Node {
@@ -213,6 +221,18 @@ class List {
   Node *first;
   Node *last;
   size_t _size;
+  void add_last(Node *n) { 
+    n->tail=nullptr;
+    ++_size;  
+    if(first==nullptr) first=last=n;
+    else { last->tail=n; last=n; }
+  }
+  void add_first(Node *n) { 
+    n->tail=first;
+    ++_size;
+    if(first==nullptr) first=last=n; 
+    else first=n;
+  }
 public:
   List()=default;
   List(std::nullptr_t) { first=last=nullptr; _size=0; }
@@ -220,7 +240,8 @@ public:
   T &operator*() { return first->head; }
   T *operator->() { return &(first->head); }
   T &operator[](size_t i);
-  size_t size() { return _size; }
+  size_t size() const { return _size; }
+  template <typename UnaryPredicate> List<T> split(UnaryPredicate pred);
   List<T>& operator=(std::nullptr_t) { first=nullptr; last=nullptr; return *this; }
   
   friend List<T> cons<T>(const T& p);
@@ -231,23 +252,45 @@ public:
   friend List<T> cons<T>(List<T> l, const Value<T> &p);
   friend List<T> cons<T>(const Value<T> & p, List<T> l);
 
-  template <typename Z> friend  List<Z*> cons(Z *p);
+  template <typename Z> friend List<Z*> cons(Z *p);
   template <typename Z> friend List<Z*> cons(List<Z*> l, Z *p);
   template <typename Z> friend List<Z*> cons(Z* p, List<Z*> l);
   
   friend List<T> cons<T>(List<T> l1, List<T> l2);
   friend List<T> begin<T>(List<T> l);
   friend List<T> end<T>(List<T> l);
+  friend void destroy<T>(List<T> &l);
   friend bool operator==<T>(const List<T> &l, const List<T> &r);
   friend List<T> &operator++ <T>(List<T> &l);
   operator bool() const { return first!=nullptr; }
   bool operator!() const { return first==nullptr; }
 };
 template <typename T> 
-void destroy(List<T> &l) {  
-  for(auto &x:l)
-    destroy(x);
+void destroy(List<T> &l) {
+  List<T> t,r=begin(l),e=end(l); 
+  while(r!=e)
+  { t=r; 
+    ++r;
+    destroy(t.first->head);
+    delete t.first;
+  }
   l=nullptr;
+}
+template <typename T> 
+  template <typename UnaryPredicate>
+List<T> List<T>::split(UnaryPredicate pred)
+{ List<T> r1=nullptr,r2=nullptr;
+  List<T> t,r=begin(*this),e=end(*this); 
+  while(r!=e)
+  { t=r;
+    ++r;
+    if(pred(t.first->head))
+      r1.add_last(t.first);
+    else
+      r2.add_last(t.first);
+  }
+  *this=r2;
+  return r1;
 }
 template <typename T>
 List<T>::List(std::initializer_list<T> v)
@@ -308,33 +351,21 @@ inline List<T> cons(List<T> l)
 
 template <typename T>
 List<T> cons(const Value<T> & p)
-{ List<T> r(nullptr);
-  if(!p) return r;
-  r.first=r.last=new typename List<T>::Node(p,nullptr);
-  r._size=1;
-  return r;
+{ 
+  if(!p) return List<T>(nullptr);
+  return cons(static_cast<T>(p));
 }
 template <typename T>
 List<T> cons(List<T> l, const Value<T> &p)
 { 
   if(!p) return l;
-  if(l.first==nullptr) return cons(p);
-  List<T> r;
-  r.first=l.first;
-  r.last=l.last->tail=new typename List<T>::Node(p,nullptr);
-  r._size=l._size+1;
-  return r;
+  return cons(l,static_cast<T>(p));
 }
 template <typename T>
 List<T> cons(const Value<T> &p, List<T> l)
 {
   if(!p) return l;
-  if(l.first==nullptr) return cons(p);
-  List<T> r;
-  r.first=new typename List<T>::Node(p,l.first);
-  r.last=l.last;
-  r._size=l._size+1;
-  return r;
+  return cons(static_cast<T>(p),l);
 }
 
 template <typename T>
@@ -412,17 +443,12 @@ inline List<T> operator++(List<T> &l, int)
   return r;
 }
 
-extern YYLTYPE yylloc;
-void init_yyloc(YYLTYPE &);
-void set_yyloc(const YYLTYPE&);
-void set_yyloc(int, int);
-
 #ifndef AST_BASE_DOMAIN
 #define AST_BASE_DOMAIN 1
 struct _domain {
 
   YYLTYPE yyloc;
-  _domain() { init_yyloc(yyloc); }
+  _domain(const YYLTYPE *_loc) { if(_loc) yyloc=*_loc; else memset(&yyloc,0,sizeof(yyloc)); }
 
   virtual ~_domain(){}
 };
@@ -431,65 +457,79 @@ struct _domain {
 #endif
 namespace ast {
 struct Code_domain : _domain {
+	Code_domain(const YYLTYPE *_loc):_domain(_loc) {}
 };
 typedef Code_domain *Code;
 int astprint(std::ostream&, Code, int=0, const char* =nullptr);
 struct Decl_domain : _domain {
+	Decl_domain(const YYLTYPE *_loc):_domain(_loc) {}
 };
 typedef Decl_domain *Decl;
 int astprint(std::ostream&, Decl, int=0, const char* =nullptr);
 struct Gaction_domain : _domain {
+	Gaction_domain(const YYLTYPE *_loc):_domain(_loc) {}
 };
 typedef Gaction_domain *Gaction;
 int astprint(std::ostream&, Gaction, int=0, const char* =nullptr);
 struct Gelem_domain : _domain {
+	Gelem_domain(const YYLTYPE *_loc):_domain(_loc) {}
 };
 typedef Gelem_domain *Gelem;
 int astprint(std::ostream&, Gelem, int=0, const char* =nullptr);
 struct Grule_domain : _domain {
+	Grule_domain(const YYLTYPE *_loc):_domain(_loc) {}
 };
 typedef Grule_domain *Grule;
 int astprint(std::ostream&, Grule, int=0, const char* =nullptr);
 struct Laction_domain : _domain {
+	Laction_domain(const YYLTYPE *_loc):_domain(_loc) {}
 };
 typedef Laction_domain *Laction;
 int astprint(std::ostream&, Laction, int=0, const char* =nullptr);
 struct Lrule_domain : _domain {
+	Lrule_domain(const YYLTYPE *_loc):_domain(_loc) {}
 };
 typedef Lrule_domain *Lrule;
 int astprint(std::ostream&, Lrule, int=0, const char* =nullptr);
 struct Mrule_domain : _domain {
+	Mrule_domain(const YYLTYPE *_loc):_domain(_loc) {}
 };
 typedef Mrule_domain *Mrule;
 int astprint(std::ostream&, Mrule, int=0, const char* =nullptr);
 struct Node_domain : _domain {
+	Node_domain(const YYLTYPE *_loc):_domain(_loc) {}
 };
 typedef Node_domain *Node;
 int astprint(std::ostream&, Node, int=0, const char* =nullptr);
 struct Program_domain : _domain {
+	Program_domain(const YYLTYPE *_loc):_domain(_loc) {}
 };
 typedef Program_domain *Program;
 int astprint(std::ostream&, Program, int=0, const char* =nullptr);
 struct Symbol_domain : _domain {
+	Symbol_domain(const YYLTYPE *_loc):_domain(_loc) {}
 };
 typedef Symbol_domain *Symbol;
 int astprint(std::ostream&, Symbol, int=0, const char* =nullptr);
 struct Term_domain : _domain {
+	Term_domain(const YYLTYPE *_loc):_domain(_loc) {}
 };
 typedef Term_domain *Term;
 int astprint(std::ostream&, Term, int=0, const char* =nullptr);
 struct Vrule_domain : _domain {
+	Vrule_domain(const YYLTYPE *_loc):_domain(_loc) {}
 };
 typedef Vrule_domain *Vrule;
 int astprint(std::ostream&, Vrule, int=0, const char* =nullptr);
 struct Xrule_domain : _domain {
+	Xrule_domain(const YYLTYPE *_loc):_domain(_loc) {}
 };
 typedef Xrule_domain *Xrule;
 int astprint(std::ostream&, Xrule, int=0, const char* =nullptr);
 struct declcode_node : Decl_domain {
 	ast::Value<std::string> f1_;
 	List<Code> f2_;
-	declcode_node(ast::Value<std::string> a1, List<Code> a2):f1_(a1), f2_(a2){}
+	declcode_node(ast::Value<std::string> a1, List<Code> a2, const YYLTYPE *_loc=nullptr):Decl_domain(_loc), f1_(a1), f2_(a2){}
 	~declcode_node() {
 	  destroy(f1_);
 	  destroy(f2_);
@@ -497,7 +537,7 @@ struct declcode_node : Decl_domain {
 };
 struct decloper_node : Decl_domain {
 	List<std::string> f1_;
-	decloper_node(List<std::string> a1):f1_(a1){}
+	decloper_node(List<std::string> a1, const YYLTYPE *_loc=nullptr):Decl_domain(_loc), f1_(a1){}
 	~decloper_node() {
 	  destroy(f1_);
 	}
@@ -505,88 +545,76 @@ struct decloper_node : Decl_domain {
 struct declre_node : Decl_domain {
 	std::string f1_;
 	std::string f2_;
-	declre_node(const std::string& a1, const std::string& a2):f1_(a1), f2_(a2){}
-	~declre_node() {
-	}
+	declre_node(const std::string& a1, const std::string& a2, const YYLTYPE *_loc=nullptr):Decl_domain(_loc), f1_(a1), f2_(a2){}
 };
 struct decltypes_node : Decl_domain {
 	std::string f1_;
 	List<Symbol> f2_;
-	decltypes_node(const std::string& a1, List<Symbol> a2):f1_(a1), f2_(a2){}
+	decltypes_node(const std::string& a1, List<Symbol> a2, const YYLTYPE *_loc=nullptr):Decl_domain(_loc), f1_(a1), f2_(a2){}
 	~decltypes_node() {
 	  destroy(f2_);
 	}
 };
 struct gcode_node : Gaction_domain {
 	List<Code> f1_;
-	gcode_node(List<Code> a1):f1_(a1){}
+	gcode_node(List<Code> a1, const YYLTYPE *_loc=nullptr):Gaction_domain(_loc), f1_(a1){}
 	~gcode_node() {
 	  destroy(f1_);
 	}
 };
 struct gempty_node : Gaction_domain {
-	gempty_node(){}
-	~gempty_node() {
-	}
+	gempty_node(const YYLTYPE *_loc=nullptr):Gaction_domain(_loc) {}
 };
 struct grmrule_node : Grule_domain {
 	std::string f1_;
 	List<Xrule> f2_;
-	grmrule_node(const std::string& a1, List<Xrule> a2):f1_(a1), f2_(a2){}
+	grmrule_node(const std::string& a1, List<Xrule> a2, const YYLTYPE *_loc=nullptr):Grule_domain(_loc), f1_(a1), f2_(a2){}
 	~grmrule_node() {
 	  destroy(f2_);
 	}
 };
 struct gterm_node : Gaction_domain {
 	Term f1_;
-	gterm_node(Term a1):f1_(a1){}
+	gterm_node(Term a1, const YYLTYPE *_loc=nullptr):Gaction_domain(_loc), f1_(a1){}
 	~gterm_node() {
 	  destroy(f1_);
 	}
 };
 struct ident_node : Symbol_domain {
 	std::string f1_;
-	ident_node(const std::string& a1):f1_(a1){}
-	~ident_node() {
-	}
+	ident_node(const std::string& a1, const YYLTYPE *_loc=nullptr):Symbol_domain(_loc), f1_(a1){}
 };
 struct lcode_node : Laction_domain {
 	List<Code> f1_;
-	lcode_node(List<Code> a1):f1_(a1){}
+	lcode_node(List<Code> a1, const YYLTYPE *_loc=nullptr):Laction_domain(_loc), f1_(a1){}
 	~lcode_node() {
 	  destroy(f1_);
 	}
 };
 struct lexem_node : Code_domain {
 	std::string f1_;
-	lexem_node(const std::string& a1):f1_(a1){}
-	~lexem_node() {
-	}
+	lexem_node(const std::string& a1, const YYLTYPE *_loc=nullptr):Code_domain(_loc), f1_(a1){}
 };
 struct lexrule_node : Lrule_domain {
 	List<std::string> f1_;
 	std::string f2_;
 	Laction f3_;
-	lexrule_node(List<std::string> a1, const std::string& a2, Laction a3):f1_(a1), f2_(a2), f3_(a3){}
+	lexrule_node(List<std::string> a1, const std::string& a2, Laction a3, const YYLTYPE *_loc=nullptr):Lrule_domain(_loc), f1_(a1), f2_(a2), f3_(a3){}
 	~lexrule_node() {
 	  destroy(f1_);
 	  destroy(f3_);
 	}
 };
 struct lnext_node : Laction_domain {
-	lnext_node(){}
-	~lnext_node() {
-	}
+	lnext_node(const YYLTYPE *_loc=nullptr):Laction_domain(_loc) {}
 };
 struct lskip_node : Laction_domain {
-	lskip_node(){}
-	~lskip_node() {
-	}
+	lskip_node(const YYLTYPE *_loc=nullptr):Laction_domain(_loc) {}
 };
 struct lterm_node : Laction_domain {
 	ast::Value<std::string> f1_;
 	Term f2_;
-	lterm_node(ast::Value<std::string> a1, Term a2):f1_(a1), f2_(a2){}
+	lterm_node(ast::Value<std::string> a1, Term a2, const YYLTYPE *_loc=nullptr):Laction_domain(_loc), f1_(a1), f2_(a2){}
 	~lterm_node() {
 	  destroy(f1_);
 	  destroy(f2_);
@@ -595,7 +623,7 @@ struct lterm_node : Laction_domain {
 struct mcode_node : Code_domain {
 	List<std::string> f1_;
 	List<Mrule> f2_;
-	mcode_node(List<std::string> a1, List<Mrule> a2):f1_(a1), f2_(a2){}
+	mcode_node(List<std::string> a1, List<Mrule> a2, const YYLTYPE *_loc=nullptr):Code_domain(_loc), f1_(a1), f2_(a2){}
 	~mcode_node() {
 	  destroy(f1_);
 	  destroy(f2_);
@@ -604,7 +632,7 @@ struct mcode_node : Code_domain {
 struct mrule_node : Mrule_domain {
 	Node f1_;
 	List<Code> f2_;
-	mrule_node(Node a1, List<Code> a2):f1_(a1), f2_(a2){}
+	mrule_node(Node a1, List<Code> a2, const YYLTYPE *_loc=nullptr):Mrule_domain(_loc), f1_(a1), f2_(a2){}
 	~mrule_node() {
 	  destroy(f1_);
 	  destroy(f2_);
@@ -613,35 +641,33 @@ struct mrule_node : Mrule_domain {
 struct node_node : Symbol_domain {
 	std::string f1_;
 	List<std::string> f2_;
-	node_node(const std::string& a1, List<std::string> a2):f1_(a1), f2_(a2){}
+	node_node(const std::string& a1, List<std::string> a2, const YYLTYPE *_loc=nullptr):Symbol_domain(_loc), f1_(a1), f2_(a2){}
 	~node_node() {
 	  destroy(f2_);
 	}
 };
 struct node1_node : Node_domain {
 	std::string f1_;
-	node1_node(const std::string& a1):f1_(a1){}
-	~node1_node() {
-	}
+	node1_node(const std::string& a1, const YYLTYPE *_loc=nullptr):Node_domain(_loc), f1_(a1){}
 };
 struct node2_node : Node_domain {
 	std::string f1_;
 	List<std::string> f2_;
-	node2_node(const std::string& a1, List<std::string> a2):f1_(a1), f2_(a2){}
+	node2_node(const std::string& a1, List<std::string> a2, const YYLTYPE *_loc=nullptr):Node_domain(_loc), f1_(a1), f2_(a2){}
 	~node2_node() {
 	  destroy(f2_);
 	}
 };
 struct optelem_node : Gelem_domain {
 	List<Xrule> f1_;
-	optelem_node(List<Xrule> a1):f1_(a1){}
+	optelem_node(List<Xrule> a1, const YYLTYPE *_loc=nullptr):Gelem_domain(_loc), f1_(a1){}
 	~optelem_node() {
 	  destroy(f1_);
 	}
 };
 struct pcode_node : Code_domain {
 	List<Code> f1_;
-	pcode_node(List<Code> a1):f1_(a1){}
+	pcode_node(List<Code> a1, const YYLTYPE *_loc=nullptr):Code_domain(_loc), f1_(a1){}
 	~pcode_node() {
 	  destroy(f1_);
 	}
@@ -651,7 +677,7 @@ struct prog_node : Program_domain {
 	List<Lrule> f2_;
 	List<Grule> f3_;
 	List<Code> f4_;
-	prog_node(List<Decl> a1, List<Lrule> a2, List<Grule> a3, List<Code> a4):f1_(a1), f2_(a2), f3_(a3), f4_(a4){}
+	prog_node(List<Decl> a1, List<Lrule> a2, List<Grule> a3, List<Code> a4, const YYLTYPE *_loc=nullptr):Program_domain(_loc), f1_(a1), f2_(a2), f3_(a3), f4_(a4){}
 	~prog_node() {
 	  destroy(f1_);
 	  destroy(f2_);
@@ -661,59 +687,49 @@ struct prog_node : Program_domain {
 };
 struct repelem0_node : Gelem_domain {
 	List<Xrule> f1_;
-	repelem0_node(List<Xrule> a1):f1_(a1){}
+	repelem0_node(List<Xrule> a1, const YYLTYPE *_loc=nullptr):Gelem_domain(_loc), f1_(a1){}
 	~repelem0_node() {
 	  destroy(f1_);
 	}
 };
 struct repelem1_node : Gelem_domain {
 	List<Xrule> f1_;
-	repelem1_node(List<Xrule> a1):f1_(a1){}
+	repelem1_node(List<Xrule> a1, const YYLTYPE *_loc=nullptr):Gelem_domain(_loc), f1_(a1){}
 	~repelem1_node() {
 	  destroy(f1_);
 	}
 };
 struct snode_node : Term_domain {
 	std::string f1_;
-	snode_node(const std::string& a1):f1_(a1){}
-	~snode_node() {
-	}
+	snode_node(const std::string& a1, const YYLTYPE *_loc=nullptr):Term_domain(_loc), f1_(a1){}
 };
 struct symelem_node : Gelem_domain {
 	std::string f1_;
-	symelem_node(const std::string& a1):f1_(a1){}
-	~symelem_node() {
-	}
+	symelem_node(const std::string& a1, const YYLTYPE *_loc=nullptr):Gelem_domain(_loc), f1_(a1){}
 };
 struct terminal_node : Symbol_domain {
 	std::string f1_;
-	terminal_node(const std::string& a1):f1_(a1){}
-	~terminal_node() {
-	}
+	terminal_node(const std::string& a1, const YYLTYPE *_loc=nullptr):Symbol_domain(_loc), f1_(a1){}
 };
 struct tnode_node : Term_domain {
 	std::string f1_;
 	List<std::string> f2_;
-	tnode_node(const std::string& a1, List<std::string> a2):f1_(a1), f2_(a2){}
+	tnode_node(const std::string& a1, List<std::string> a2, const YYLTYPE *_loc=nullptr):Term_domain(_loc), f1_(a1), f2_(a2){}
 	~tnode_node() {
 	  destroy(f2_);
 	}
 };
 struct token_node : Code_domain {
 	std::string f1_;
-	token_node(const std::string& a1):f1_(a1){}
-	~token_node() {
-	}
+	token_node(const std::string& a1, const YYLTYPE *_loc=nullptr):Code_domain(_loc), f1_(a1){}
 };
 struct trmelem_node : Gelem_domain {
 	std::string f1_;
-	trmelem_node(const std::string& a1):f1_(a1){}
-	~trmelem_node() {
-	}
+	trmelem_node(const std::string& a1, const YYLTYPE *_loc=nullptr):Gelem_domain(_loc), f1_(a1){}
 };
 struct varelem_node : Gelem_domain {
 	List<Xrule> f1_;
-	varelem_node(List<Xrule> a1):f1_(a1){}
+	varelem_node(List<Xrule> a1, const YYLTYPE *_loc=nullptr):Gelem_domain(_loc), f1_(a1){}
 	~varelem_node() {
 	  destroy(f1_);
 	}
@@ -724,7 +740,7 @@ struct vcode_node : Code_domain {
 	std::string f3_;
 	List<Code> f4_;
 	List<Vrule> f5_;
-	vcode_node(const std::string& a1, const std::string& a2, const std::string& a3, List<Code> a4, List<Vrule> a5):f1_(a1), f2_(a2), f3_(a3), f4_(a4), f5_(a5){}
+	vcode_node(const std::string& a1, const std::string& a2, const std::string& a3, List<Code> a4, List<Vrule> a5, const YYLTYPE *_loc=nullptr):Code_domain(_loc), f1_(a1), f2_(a2), f3_(a3), f4_(a4), f5_(a5){}
 	~vcode_node() {
 	  destroy(f4_);
 	  destroy(f5_);
@@ -733,7 +749,7 @@ struct vcode_node : Code_domain {
 struct vrule_node : Vrule_domain {
 	Node f1_;
 	List<Code> f2_;
-	vrule_node(Node a1, List<Code> a2):f1_(a1), f2_(a2){}
+	vrule_node(Node a1, List<Code> a2, const YYLTYPE *_loc=nullptr):Vrule_domain(_loc), f1_(a1), f2_(a2){}
 	~vrule_node() {
 	  destroy(f1_);
 	  destroy(f2_);
@@ -742,124 +758,122 @@ struct vrule_node : Vrule_domain {
 struct xrule_node : Xrule_domain {
 	List<Gelem> f1_;
 	Gaction f2_;
-	xrule_node(List<Gelem> a1, Gaction a2):f1_(a1), f2_(a2){}
+	xrule_node(List<Gelem> a1, Gaction a2, const YYLTYPE *_loc=nullptr):Xrule_domain(_loc), f1_(a1), f2_(a2){}
 	~xrule_node() {
 	  destroy(f1_);
 	  destroy(f2_);
 	}
 };
-inline Decl declcode(ast::Value<std::string> a1, List<Code> a2) {
-	return new declcode_node(a1, a2);
+inline Decl declcode(ast::Value<std::string> a1, List<Code> a2, const YYLTYPE *_loc=nullptr) {
+	return new declcode_node(a1, a2, _loc);
 }
-inline Decl decloper(List<std::string> a1) {
-	return new decloper_node(a1);
+inline Decl decloper(List<std::string> a1, const YYLTYPE *_loc=nullptr) {
+	return new decloper_node(a1, _loc);
 }
-inline Decl declre(const std::string& a1, const std::string& a2) {
-	return new declre_node(a1, a2);
+inline Decl declre(const std::string& a1, const std::string& a2, const YYLTYPE *_loc=nullptr) {
+	return new declre_node(a1, a2, _loc);
 }
-inline Decl decltypes(const std::string& a1, List<Symbol> a2) {
-	return new decltypes_node(a1, a2);
+inline Decl decltypes(const std::string& a1, List<Symbol> a2, const YYLTYPE *_loc=nullptr) {
+	return new decltypes_node(a1, a2, _loc);
 }
-inline Gaction gcode(List<Code> a1) {
-	return new gcode_node(a1);
+inline Gaction gcode(List<Code> a1, const YYLTYPE *_loc=nullptr) {
+	return new gcode_node(a1, _loc);
 }
-inline Gaction gempty() {
-	return new gempty_node();
+inline Gaction gempty(const YYLTYPE *_loc=nullptr) {
+	return new gempty_node(_loc);
 }
-inline Grule grmrule(const std::string& a1, List<Xrule> a2) {
-	return new grmrule_node(a1, a2);
+inline Grule grmrule(const std::string& a1, List<Xrule> a2, const YYLTYPE *_loc=nullptr) {
+	return new grmrule_node(a1, a2, _loc);
 }
-inline Gaction gterm(Term a1) {
-	return new gterm_node(a1);
+inline Gaction gterm(Term a1, const YYLTYPE *_loc=nullptr) {
+	return new gterm_node(a1, _loc);
 }
-inline Symbol ident(const std::string& a1) {
-	return new ident_node(a1);
+inline Symbol ident(const std::string& a1, const YYLTYPE *_loc=nullptr) {
+	return new ident_node(a1, _loc);
 }
-inline Laction lcode(List<Code> a1) {
-	return new lcode_node(a1);
+inline Laction lcode(List<Code> a1, const YYLTYPE *_loc=nullptr) {
+	return new lcode_node(a1, _loc);
 }
-inline Code lexem(const std::string& a1) {
-	return new lexem_node(a1);
+inline Code lexem(const std::string& a1, const YYLTYPE *_loc=nullptr) {
+	return new lexem_node(a1, _loc);
 }
-inline Lrule lexrule(List<std::string> a1, const std::string& a2, Laction a3) {
-	return new lexrule_node(a1, a2, a3);
+inline Lrule lexrule(List<std::string> a1, const std::string& a2, Laction a3, const YYLTYPE *_loc=nullptr) {
+	return new lexrule_node(a1, a2, a3, _loc);
 }
-inline Laction lnext() {
-	return new lnext_node();
+inline Laction lnext(const YYLTYPE *_loc=nullptr) {
+	return new lnext_node(_loc);
 }
-inline Laction lskip() {
-	return new lskip_node();
+inline Laction lskip(const YYLTYPE *_loc=nullptr) {
+	return new lskip_node(_loc);
 }
-inline Laction lterm(ast::Value<std::string> a1, Term a2) {
-	return new lterm_node(a1, a2);
+inline Laction lterm(ast::Value<std::string> a1, Term a2, const YYLTYPE *_loc=nullptr) {
+	return new lterm_node(a1, a2, _loc);
 }
-inline Code mcode(List<std::string> a1, List<Mrule> a2) {
-	return new mcode_node(a1, a2);
+inline Code mcode(List<std::string> a1, List<Mrule> a2, const YYLTYPE *_loc=nullptr) {
+	return new mcode_node(a1, a2, _loc);
 }
-inline Mrule mrule(Node a1, List<Code> a2) {
-	return new mrule_node(a1, a2);
+inline Mrule mrule(Node a1, List<Code> a2, const YYLTYPE *_loc=nullptr) {
+	return new mrule_node(a1, a2, _loc);
 }
-inline Symbol node(const std::string& a1, List<std::string> a2) {
-	return new node_node(a1, a2);
+inline Symbol node(const std::string& a1, List<std::string> a2, const YYLTYPE *_loc=nullptr) {
+	return new node_node(a1, a2, _loc);
 }
-inline Node node1(const std::string& a1) {
-	return new node1_node(a1);
+inline Node node1(const std::string& a1, const YYLTYPE *_loc=nullptr) {
+	return new node1_node(a1, _loc);
 }
-inline Node node2(const std::string& a1, List<std::string> a2) {
-	return new node2_node(a1, a2);
+inline Node node2(const std::string& a1, List<std::string> a2, const YYLTYPE *_loc=nullptr) {
+	return new node2_node(a1, a2, _loc);
 }
-inline Gelem optelem(List<Xrule> a1) {
-	return new optelem_node(a1);
+inline Gelem optelem(List<Xrule> a1, const YYLTYPE *_loc=nullptr) {
+	return new optelem_node(a1, _loc);
 }
-inline Code pcode(List<Code> a1) {
-	return new pcode_node(a1);
+inline Code pcode(List<Code> a1, const YYLTYPE *_loc=nullptr) {
+	return new pcode_node(a1, _loc);
 }
-inline Program prog(List<Decl> a1, List<Lrule> a2, List<Grule> a3, List<Code> a4) {
-	return new prog_node(a1, a2, a3, a4);
+inline Program prog(List<Decl> a1, List<Lrule> a2, List<Grule> a3, List<Code> a4, const YYLTYPE *_loc=nullptr) {
+	return new prog_node(a1, a2, a3, a4, _loc);
 }
-inline Gelem repelem0(List<Xrule> a1) {
-	return new repelem0_node(a1);
+inline Gelem repelem0(List<Xrule> a1, const YYLTYPE *_loc=nullptr) {
+	return new repelem0_node(a1, _loc);
 }
-inline Gelem repelem1(List<Xrule> a1) {
-	return new repelem1_node(a1);
+inline Gelem repelem1(List<Xrule> a1, const YYLTYPE *_loc=nullptr) {
+	return new repelem1_node(a1, _loc);
 }
-inline Term snode(const std::string& a1) {
-	return new snode_node(a1);
+inline Term snode(const std::string& a1, const YYLTYPE *_loc=nullptr) {
+	return new snode_node(a1, _loc);
 }
-inline Gelem symelem(const std::string& a1) {
-	return new symelem_node(a1);
+inline Gelem symelem(const std::string& a1, const YYLTYPE *_loc=nullptr) {
+	return new symelem_node(a1, _loc);
 }
-inline Symbol terminal(const std::string& a1) {
-	return new terminal_node(a1);
+inline Symbol terminal(const std::string& a1, const YYLTYPE *_loc=nullptr) {
+	return new terminal_node(a1, _loc);
 }
-inline Term tnode(const std::string& a1, List<std::string> a2) {
-	return new tnode_node(a1, a2);
+inline Term tnode(const std::string& a1, List<std::string> a2, const YYLTYPE *_loc=nullptr) {
+	return new tnode_node(a1, a2, _loc);
 }
-inline Code token(const std::string& a1) {
-	return new token_node(a1);
+inline Code token(const std::string& a1, const YYLTYPE *_loc=nullptr) {
+	return new token_node(a1, _loc);
 }
-inline Gelem trmelem(const std::string& a1) {
-	return new trmelem_node(a1);
+inline Gelem trmelem(const std::string& a1, const YYLTYPE *_loc=nullptr) {
+	return new trmelem_node(a1, _loc);
 }
-inline Gelem varelem(List<Xrule> a1) {
-	return new varelem_node(a1);
+inline Gelem varelem(List<Xrule> a1, const YYLTYPE *_loc=nullptr) {
+	return new varelem_node(a1, _loc);
 }
-inline Code vcode(const std::string& a1, const std::string& a2, const std::string& a3, List<Code> a4, List<Vrule> a5) {
-	return new vcode_node(a1, a2, a3, a4, a5);
+inline Code vcode(const std::string& a1, const std::string& a2, const std::string& a3, List<Code> a4, List<Vrule> a5, const YYLTYPE *_loc=nullptr) {
+	return new vcode_node(a1, a2, a3, a4, a5, _loc);
 }
-inline Vrule vrule(Node a1, List<Code> a2) {
-	return new vrule_node(a1, a2);
+inline Vrule vrule(Node a1, List<Code> a2, const YYLTYPE *_loc=nullptr) {
+	return new vrule_node(a1, a2, _loc);
 }
-inline Xrule xrule(List<Gelem> a1, Gaction a2) {
-	return new xrule_node(a1, a2);
+inline Xrule xrule(List<Gelem> a1, Gaction a2, const YYLTYPE *_loc=nullptr) {
+	return new xrule_node(a1, a2, _loc);
 }
 }
 using namespace ast;
 int yyliteral(const std::string&);
-void yystart(FILE *);
-void yystart(std::istream&);
 int yywrap();
-int yyparse();
+int yyparse(void*);
 extern const char* yyinputfile;
 extern int yydebug_flag;
 union YYSTYPE {
@@ -893,14 +907,20 @@ union YYSTYPE {
 inline void yyclear_attr(YYSTYPE&v) { memset(&v,0,sizeof(v)); }
 #define YYSTYPE_IS_TRIVIAL 1
 #define YYSTYPE_IS_DECLARED 1
-int yylex(YYSTYPE*, YYLTYPE*);
+void yylex_destroy(void*);
+const char* yylex_filename(void*, int=-1);
+void yylex_init(void**);
+void yylex_init(void**, FILE*, const std::string&);
+void yylex_init(void**, std::istream &, const std::string&);
+int yylex(YYSTYPE*, YYLTYPE*, void*);
+void lexprint(std::ostream&, int, YYSTYPE&);
 void yyerror(const std::string &);
-void yyerror(int, int, const std::string&);
-void yyerror(YYLTYPE*, const char*);
+void yyerror(YYLTYPE*, void*, const char*);
 void yyinterpret(Program);
+#define YYINTERPRET(ast,scanner) yyinterpret(ast)
 
 	#line 2 "caio.caio"
- 
+  
 #include <string>
 #include <iostream>
 #include <fstream>
