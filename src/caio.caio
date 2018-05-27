@@ -1,4 +1,4 @@
-%option noyywrap noliteral-rules nomatcherror locations
+%option noyywrap noliteral-rules nomatcherror locations lexprint astprint
 %{
 #include <string>
 #include <iostream>
@@ -19,7 +19,7 @@ extern int caio_mode;
 %{
 int caio_mode=M_DECL;
 string re_str,code_dest;
-static string reinput(FlexLexer& scanner, int nl)
+static string reinput(yyFlexLexer& scanner, int nl)
 { string re="R\"";
   int k=0; 
   int r=0,c;
@@ -46,7 +46,9 @@ static string reinput(FlexLexer& scanner, int nl)
     if(c!='"' || re.size()<=5+2*k) err=1;
   }
   else err=1;
-  if(err) yyerror(scanner.lineno(),scanner.columno(),"RE error");
+  if(err) 
+  { yyerror(&(scanner.yylloc),&scanner,"RE error");
+  }
   return re;
 }
 %}
@@ -250,7 +252,7 @@ grule : ?id? '=' erule                        <grmrule($1,$3)>
       ;
 erule : xrule { '|' xrule }                   <cons($1,$2)>
       ;
-xrule : { elem [ ',' ] <$1> } rcode           <xrule($1,$2)>
+xrule : { elem [ ',' ] } rcode                <xrule($1,$2)>
       ;
 rcode :                                       <gempty()>
       | '<' term '>'                          <gterm($2)>
@@ -752,8 +754,8 @@ void show_line(ostream& fout, int l, int c)
 {
     if(line_flag==0 || l<=1) return;
     fout<<"\n\t#line "<<l<<" \""<<yyinputfile<<"\"\n";
-    if(c<=0) c=1;
-    while(--c>=0) fout<<' ';
+    if(c<=0) c=2;
+    while(--c>0) fout<<' ';
 }
 void gen_code_line(ostream& fout, List<Code> code, int mlevel,int limit);
 void gen_code(ostream& fout, List<Code> code, int mlevel,int limit)
@@ -842,10 +844,10 @@ void gen_code(ostream& fout, List<Code> code, int mlevel,int limit)
         }
         if(!dflt && matcherr_flag)
         {  if(flg) fout<<"else ";
-           fout<<"{ yyerror(\""<<yyinputfile<<":"<<@$.last_line<<":"<<@$.last_column<<": Match error\"s); }\n";
+           fout<<"{ yyerror(\""<<yyinputfile<<":"<<@$.last.line<<":"<<@$.last.column<<": Match error\"); }\n";
         }
         fout<<"}\n";
-        show_line(fout,@$.last_line,@$.last_column);
+        show_line(fout,@$.last.line,@$.last.column);
 
         gen_mode=old_mode;
       }
@@ -906,7 +908,7 @@ void gen_code(ostream& fout, List<Code> code, int mlevel,int limit)
           }
         }
         fout<<"} "<<id<<";\n";
-        show_line(fout,@$.last_line,@$.last_column);
+        show_line(fout,@$.last.line,@$.last.column);
         gen_mode=old_mode;
       }
     rule token(val):
@@ -924,7 +926,7 @@ void gen_code(ostream& fout, List<Code> code, int mlevel,int limit)
 void gen_code_line(ostream& fout, List<Code> code, int mlevel,int limit)
 { if(code)
   { 
-    show_line(fout,code[0]->yyloc.first_line,code[0]->yyloc.first_column);
+    show_line(fout,code[0]->yyloc.first.line,code[0]->yyloc.first.column);
     gen_code(fout,code,mlevel,limit);
   }
 }
@@ -1094,6 +1096,37 @@ void collect_terminals(List<Grule> rules)
     }
   } 
 }
+bool is_empty_rule(List<Xrule> rules)
+{
+  for(auto r:rules)
+  { match r {
+    rule xrule(elist, a):
+      match a {
+      rule gempty():
+        for(auto e:elist)
+        {
+          match e {
+          rule trmelem(id):
+            if(!empty_type(symbols[normalize_terminal(id)].tip)) return false;
+          rule varelem(xl):
+            if(!is_empty_rule(xl)) return false;
+          rule optelem(xl):
+            if(!is_empty_rule(xl)) return false;
+          rule repelem1(xl):
+            if(!is_empty_rule(xl)) return false;
+          rule repelem0(xl):
+            if(!is_empty_rule(xl)) return false;
+          default:
+            return false;
+          }
+        }
+      default:
+        return false;
+      }
+    }
+  }
+  return true;
+}
 void setup_default(List<Xrule> rules, bool need)
 { 
   for(auto r:rules)
@@ -1112,12 +1145,29 @@ void setup_default(List<Xrule> rules, bool need)
               if(!empty_type(symbols[normalize_terminal(id)].tip))
               { i=n; ++k;
               }
+            rule varelem(xl):
+              if(!is_empty_rule(xl))
+              { i=n; ++k;
+              }
+            rule optelem(xl):
+              if(!is_empty_rule(xl))
+              { i=n; ++k;
+              }
+            rule repelem1(xl):
+              if(!is_empty_rule(xl))
+              { i=n; ++k;
+              }
+            rule repelem0(xl):
+              if(!is_empty_rule(xl))
+              { i=n; ++k;
+              }
             default:
-              { i=n; ++k; }
+              { i=n; ++k; 
+              }
             }
           }
           if(k==1) {
-            a=gterm(snode("$"s+to_string(i)));
+            destroy(a); a=gterm(snode("$"s+to_string(i)));
             refs.insert(i);
           }
           else if(k>1)
@@ -1129,7 +1179,7 @@ void setup_default(List<Xrule> rules, bool need)
         collect_refs(cc,refs);
       }
       int n=0;
-      for(auto e:elist)
+      for(auto &e:elist)
       { ++n;
         bool flg=refs.find(n)!=refs.end();
         match e {
@@ -1242,11 +1292,30 @@ bool is_symelem(Gelem e, const string &id)
   }
   return res;
 }
+bool is_trmelem(Gelem e)
+{ bool res=false;
+  match e {
+    rule trmelem(s): res=true;
+  }
+  return res; 
+}
 int prior_elem(Gelem e, int n)
 {
   int res=0;
   match e {
     rule trmelem(s): res=oper_prior(s,n);
+    rule varelem(xl):
+       res=100;
+       for(auto x:xl)
+       { match x {
+         rule xrule(elist, a):
+           if(elist.size()!=1) return 0;
+           if(!is_trmelem(elist[0])) return 0;
+           int p=prior_elem(elist[0],n);
+           if(p==0 && n==2) return 0;
+           if(p>0 && res>p) res=p;
+         }
+       }
   }
   return res;
 }
@@ -1258,6 +1327,26 @@ string type_elem(Gelem e, int n)
   }
   return res;
 }
+bool is_operrule(Xrule x, int prior, int n, const string &tip)
+{ 
+  match x {
+  rule xrule(elist, a):
+    if(elist.size()!=1) return false;
+    if(!is_trmelem(elist[0])) return false;
+    return prior_elem(elist[0],n)==prior && type_elem(elist[0],n)==tip;
+  }
+  return false;
+}
+struct copy_xrule_node : xrule_node {
+	copy_xrule_node(List<Gelem> a1, Gaction a2):xrule_node(a1,a2){}
+	~copy_xrule_node() {
+          f2_=nullptr;
+	}
+};
+inline Xrule copy_xrule(List<Gelem> a1, Gaction a2) {
+	return new copy_xrule_node(a1, a2);
+}
+
 void reorder_body(const string &gid, const string &id, List<Xrule> &rules)
 { int min_prior=100;
   for(auto r:rules)
@@ -1290,15 +1379,67 @@ void reorder_body(const string &gid, const string &id, List<Xrule> &rules)
       if(elist.size()==3 && is_symelem(elist[0],id) && is_symelem(elist[2],id))
       { int p=prior_elem(elist[1],2);
         if(p>min_prior)
-        { elist[0]=symelem(id1); 
-          elist[2]=symelem(id1);
+        { destroy(elist[0]); elist[0]=symelem(id1); 
+          destroy(elist[2]); elist[2]=symelem(id1);
           rules2=cons(rules2,r);
         }
         else
-        { string t=type_elem(elist[1],2);
-          if(t[0]=='x') elist[0]=symelem(id1); 
-          if(t[2]=='x') elist[2]=symelem(id1); 
-          rules1=cons(rules1,r);
+        { 
+          if(is_trmelem(elist[1]))
+          {
+            string t=type_elem(elist[1],2);
+            if(t[0]=='x') { destroy(elist[0]); elist[0]=symelem(id1); }
+            if(t[2]=='x') { destroy(elist[2]); elist[2]=symelem(id1); }
+            rules1=cons(rules1,r);
+          }
+          else
+          { List<Xrule> part1=nullptr;
+            match elist[1] {
+            rule varelem(xl):
+              part1=xl.split([=](Xrule x) { return is_operrule(x,min_prior,2,"xfx"s);} );
+              if(!xl)
+              { 
+                destroy(elist[0]); elist[0]=symelem(id1);
+                destroy(elist[2]); elist[2]=symelem(id1);
+                xl=part1;
+                rules1=cons(rules1,r);
+              }
+              else 
+              { if(part1)
+                { rules1=cons(rules1,copy_xrule(List<Gelem>({symelem(id1),varelem(part1),symelem(id1)}),a));
+                }
+                part1=xl.split([=](Xrule x) { return is_operrule(x,min_prior,2,"xfy"s);} );
+                if(!xl)
+                { 
+                  destroy(elist[0]); elist[0]=symelem(id1);
+                  xl=part1;
+                  rules1=cons(rules1,r);
+                }
+                else
+                {
+                  if(part1)
+                  { rules1=cons(rules1,copy_xrule(List<Gelem>({symelem(id1),varelem(part1),symelem(id)}),a));
+                  }
+                  part1=xl.split([=](Xrule x) { return is_operrule(x,min_prior,2,"yfx"s);} );
+                  if(!xl)
+                  { 
+                    destroy(elist[2]); elist[2]=symelem(id1);
+                    xl=part1;
+                    rules1=cons(rules1,r);
+                  }
+                  else
+                  {
+                    if(part1)
+                    { rules1=cons(rules1,copy_xrule(List<Gelem>({symelem(id),varelem(part1),symelem(id1)}),a));
+                    }
+                    rules2=cons(rules2,r);
+                    destroy(elist[0]); elist[0]=symelem(id1);
+                    destroy(elist[2]); elist[2]=symelem(id1);
+                  }    
+                }    
+              }
+            }
+          }
         }
       }
       else if(elist.size()==2 && is_symelem(elist[1],id))
@@ -1308,12 +1449,48 @@ void reorder_body(const string &gid, const string &id, List<Xrule> &rules)
         }
         else if(p>min_prior)
         { rules2=cons(rules2,r);
-          elist[1]=symelem(id1);
+          destroy(elist[1]); elist[1]=symelem(id1);
         }
         else
-        { string t=type_elem(elist[0],1);
-          if(t[1]=='x') elist[1]=symelem(id1);
-          rules1=cons(rules1,r);
+        { 
+          if(is_trmelem(elist[0]))
+          {
+            string t=type_elem(elist[0],1);
+            if(t[1]=='x') { destroy(elist[1]); elist[1]=symelem(id1); }
+            rules1=cons(rules1,r);
+          }
+          else
+          { List<Xrule> part1=nullptr;
+            match elist[0] {
+            rule varelem(xl):
+              part1=xl.split([=](Xrule x) { return is_operrule(x,min_prior,1,"fx"s);} );
+              if(!xl)
+              { 
+                destroy(elist[1]); elist[1]=symelem(id1);
+                xl=part1;
+                rules1=cons(rules1,r);
+              }
+              else 
+              { if(part1)
+                { rules1=cons(rules1,copy_xrule(List<Gelem>({varelem(part1),symelem(id1)}),a));
+                }
+                part1=xl.split([=](Xrule x) { return is_operrule(x,min_prior,1,"fy"s);} );
+                if(!xl)
+                { 
+                  xl=part1;
+                  rules1=cons(rules1,r);
+                }
+                else
+                {
+                  if(part1)
+                  { rules1=cons(rules1,copy_xrule(List<Gelem>({varelem(part1),symelem(id)}),a));
+                  }
+                  rules2=cons(rules2,r);
+                  destroy(elist[1]); elist[1]=symelem(id1);
+                }    
+              }
+            }
+          }
         }
       }
       else if(elist.size()==2 && is_symelem(elist[0],id))
@@ -1323,12 +1500,48 @@ void reorder_body(const string &gid, const string &id, List<Xrule> &rules)
         }
         else if(p>min_prior)
         { rules2=cons(rules2,r);
-          elist[0]=symelem(id1);
+          destroy(elist[0]); elist[0]=symelem(id1);
         }
         else
-        { string t=type_elem(elist[1],0);
-          if(t[0]=='x') elist[0]=symelem(id1);
-          rules1=cons(rules1,r);
+        { 
+          if(is_trmelem(elist[1]))
+          {
+            string t=type_elem(elist[1],0);
+            if(t[0]=='x') { destroy(elist[0]); elist[0]=symelem(id1); }
+            rules1=cons(rules1,r);
+          }
+          else
+          { List<Xrule> part1=nullptr;
+            match elist[1] {
+            rule varelem(xl):
+              part1=xl.split([=](Xrule x) { return is_operrule(x,min_prior,0,"xf"s);} );
+              if(!xl)
+              { 
+                destroy(elist[1]); elist[1]=symelem(id1);
+                xl=part1;
+                rules1=cons(rules1,r);
+              }
+              else 
+              { if(part1)
+                { rules1=cons(rules1,copy_xrule(List<Gelem>({symelem(id1),varelem(part1)}),a));
+                }
+                part1=xl.split([=](Xrule x) { return is_operrule(x,min_prior,0,"yf"s);} );
+                if(!xl)
+                { 
+                  xl=part1;
+                  rules1=cons(rules1,r);
+                }
+                else
+                {
+                  if(part1)
+                  { rules1=cons(rules1,copy_xrule(List<Gelem>({symelem(id),varelem(part1)}),a));
+                  }
+                  rules2=cons(rules2,r);
+                  destroy(elist[0]); elist[0]=symelem(id1);
+                }    
+              }
+            }
+          }
         }
       }
       else
@@ -1364,7 +1577,7 @@ bool check_all_gempty(List<Xrule> rules)
   return res;
 }
 void split_rules(List<Xrule> rules);
-void make_rep(int one, List<Xrule> xl, Gelem &e)
+void make_rep(int one, List<Xrule> &xl, Gelem &e)
 { 
   split_rules(xl);
   string id1(new_symbol());
@@ -1384,7 +1597,7 @@ void make_rep(int one, List<Xrule> xl, Gelem &e)
   new_rules=cons(new_rules,grmrule(id1,
            cons(cons(xrule(one?cons(symelem(id2)):nullptr,g1)),
            xrule(cons(cons(symelem(id1)),symelem(id2)),g2))));
-  e=symelem(id1);
+  xl=nullptr; destroy(e); e=symelem(id1);
 }
 void split_rules(List<Xrule> rules)
 { for(auto r:rules)
@@ -1395,13 +1608,13 @@ void split_rules(List<Xrule> rules)
         rule varelem(xl):
           split_rules(xl);
           string id(new_symbol());
-          e=symelem(id);
           new_rules=cons(new_rules,grmrule(id,xl));
+          xl=nullptr; destroy(e); e=symelem(id);
         rule optelem(xl):
           split_rules(xl);
           string id(new_symbol());
-          e=symelem(id);
           new_rules=cons(new_rules,grmrule(id,cons(xrule(nullptr,gempty()),xl)));
+          xl=nullptr; destroy(e); e=symelem(id);
         rule repelem1(xl): 
           make_rep(1,xl,e);
         rule repelem0(xl): 
@@ -1493,14 +1706,22 @@ void find_return_field(List<Code> code)
 void gen_code(ostream& fout, Term t, int limit)
 { match t {
     rule tnode(id, args):
-    { int flg=0;
-      if(nodes.find(id)!=nodes.end() || id=="cons"s)
+    { bool flg=0;
+      bool loc;
+      if((loc=nodes.find(id)!=nodes.end()) || id=="cons"s)
         fout<<"ast::";
       fout<<id<<"(";
       for(auto a:args)
       { if(flg) fout<<",";
         gen_coderef(fout,a,0,limit);
         flg=1;
+      }
+      if(gen_mode>=1 && loc && locations_flag==2)
+      { if(flg) fout<<",";
+        if(gen_mode==2)
+          fout<<"&@$";
+        else
+          fout<<"&yylloc";
       }
       fout<<")";
     }
@@ -1549,18 +1770,16 @@ void gen_lexrules(ostream& fout, List<Lrule> rules)
       match act {
       rule lterm(id,t):
          {
-           fout<<"{ yyclear_attr(yylval);";
+           fout<<"{";
            if(id)
            { string nid=normalize_terminal(id);
-             if(locations_flag==2)
-             fout<<" set_yyloc(lineno(),columno());";
              auto it=symbols.find(nid);
              int rf=0;
              if(!empty_type(it->second.tip))
                rf=union_fields[it->second.tip];
              if(t)
              { 
-               show_line(fout,@$.first_line-1,@$.first_column-10);
+               show_line(fout,t->yyloc.first.line-1,t->yyloc.first.column-(7+to_string(rf).size()+1));
                fout<<"yylval.f"<<to_string(rf)<<"_=";
                gen_mode=1;
                gen_code(fout,t,0);
@@ -1585,10 +1804,8 @@ void gen_lexrules(ostream& fout, List<Lrule> rules)
          return_field=0;
          find_return_field(code);
          gen_mode=1;
-         fout<<"{ yyclear_attr(yylval);";
-         if(locations_flag==2)
-           fout<<" set_yyloc(lineno(),columno());";
-         show_line(fout,@$.first_line-1,@$.first_column+2);
+         fout<<"{";
+         show_line(fout,@$.first.line-1,@$.first.column+1);
          gen_code(fout,code,0,0);
          fout<<"\t}\n";
       }
@@ -1603,10 +1820,49 @@ void create_lexfile(ostream& fout,const string &fn,List<Lrule> lrules)
     fout<<"%option interactive\n";
   if(yywrap_flag==0)
     fout<<"%option noyywrap\n";
-  fout<<"%option bison-locations noline\n";
-  fout<<"%top{\n";
-  fout<<"#include \""<<fn<<".h\"\n";
+  fout<<"%option bison-bridge noline\n";
+  fout<<"%top{\n"
+        "#include \""<<fn<<".h\"\n";
+  if(locations_flag!=0)
+    fout<<"#define YY_USER_ACTION yysetloc();\n";
+  if(locations_flag==1)
+    fout<<"int yylineno;\n";
   fout<<"%}\n";
+  fout<<R"___(
+%class {
+public:
+  std::vector<std::string> filenames;
+  int activefile;
+%}
+)___";
+  fout<<R"___(
+%init {
+  activefile=0;
+%}
+)___";
+  if(locations_flag==2)
+  fout<<R"___(
+%class {
+public: YYLTYPE yylloc;
+  void yysetloc(){
+    yylloc.first.line=lineno();
+    yylloc.first.file=activefile;
+    yylloc.first.column=short(columno()+1);
+    yylloc.last.line=lineno();
+    yylloc.last.file=activefile;
+    yylloc.last.column=short(columno()+size());
+  }
+%}
+)___";
+  else if(locations_flag==1)
+  fout<<R"___(
+%class {
+  void yysetloc(){
+#undef yylineno
+    yylineno=lineno();
+  }
+%}
+)___";
   gen_code(fout,lexcode,0,0);
   if(lex_states.size()>0)
   {
@@ -1621,17 +1877,26 @@ void create_lexfile(ostream& fout,const string &fn,List<Lrule> lrules)
     fout<<"\n";
   }
   fout<<"%%\n";
+  if(locations_flag==1)
+  {
+    fout<<"%{\n";
+    if(lex_states.size()>0)
+      fout<<"default:";
+    if(locations_flag==1)
+      fout<<"\tyyclear_attr(yylval);\n";
+    fout<<"%}\n";
+  }
   if(literal_flag)
   { 
     for(auto s:symbols)
     { if(isliteral(s.first))
       {
-        fout<<literal_to_re(s.first)<<"\t{ yyclear_attr(yylval); return ";
+        fout<<literal_to_re(s.first)<<"\treturn ";
         if(s.second.terminalnumber>0)
           fout<<s.second.terminalnumber;
         else 
           fout<<s.second.altname;
-        fout<<"; }\n";
+        fout<<";\n";
       }
     }
   }
@@ -1646,46 +1911,74 @@ void create_lexfile(ostream& fout,const string &fn,List<Lrule> lrules)
     }
     fout<<".|\\n\t";
     if(lexdefault_flag==0)
-      fout<<"yyerror(lineno(),columno(),\"No rules for char \"+std::to_string(yytext[0]&0xFF));\n";
+      fout<<"yyerror(\"No rules for char \"+std::to_string(yytext[0]&0xFF));\n";
     else if(lexdefault_flag==2)
       fout<<";\n";
     else
       fout<<"return yyliteral(yytext);\n";
   }
-  fout<<"%%\n"
-        "void yystart(FILE *f)\n"
-        "{ yyrestart(f);\n"
-        "}\n"
-        "void yystart(std::istream& s)\n"
-        "{ yyrestart(s);\n"
-        "}\n";
-  if(locations_flag!=2)
-  {
-  if(locations_flag==1)
-  fout<<"#undef yylineno\n"
-        "int yylineno;\n";
-  fout<<"int yylex(YYSTYPE *lvalp)\n"
-        "{ int res=YY_SCANNER.yylex(*lvalp);\n";
-  if(locations_flag==1)
-  fout<<"  yylineno=YY_SCANNER.lineno();\n";
-  fout<<"  return res;\n"
-        "}\n";
-  }
+  fout<<"%%\n";
+  if(locations_flag==2)
+    fout<<R"___(
+int yylex(YYSTYPE* lvalp, YYLTYPE* llocp, void* scanner) {
+  yyscanner_t* scanp=reinterpret_cast<yyscanner_t*>(scanner);
+  yyclear_attr(*lvalp);
+  int t=scanp->yylex(*lvalp);
+  *llocp=scanp->yylloc;
+  return t;
+}
+)___";
+  fout<<R"___(
+const char *yylex_filename(void* scanner, int i)
+{ yyscanner_t* scanp=reinterpret_cast<yyscanner_t*>(scanner);
+  if(i>=scanp->filenames.size()) return "";
+  if(i<0) i=scanp->activefile;
+  return scanp->filenames[i].c_str();
+}
+void yylex_init(yyscan_t *scanner, FILE *f, const std::string& n)
+{ yyscanner_t* scanp=new yyscanner_t;
+  *scanner = static_cast<yyscan_t>(scanp);
+  scanp->in(f);
+  scanp->filenames.push_back(n);
+}
+void yylex_init(yyscan_t *scanner, std::istream &s, const std::string& n)
+{ yyscanner_t* scanp=new yyscanner_t;
+  *scanner = static_cast<yyscan_t>(scanp);
+  scanp->in(s);
+  scanp->filenames.push_back(n);
+}
+)___";
 }
 bool need_destroy(const string &t)
 { return t=="std::string?"s || t=="std::string"s || !(t.back()=='?' || is_builtin_type(t));
 }
 void create_grmfile(ostream& fout,const string &fn, List<Grule> rules)
 {
-  fout<<"%define parse.error verbose\n";
   if(locations_flag==2)
     fout<<"%locations\n";
-  fout<<"%define api.pure full\n";
-  fout<<"%no-lines\n";
+  fout<<"%define parse.error verbose\n"
+        "%define api.pure full\n"
+        "%param { void *scanner }\n"
+        "%no-lines\n";
   if(expect_flag>=0)
     fout<<"%expect"<<expect_flag<<"\n";
   fout<<"%{\n";
   fout<<"#include \""<<fn<<".h\"\n";
+  fout<<R"___(
+#define YYLLOC_DEFAULT(Current, Rhs, N)                        \
+    do {                                                       \
+      if (N)                                                   \
+        {                                                      \
+          (Current).first   = YYRHSLOC (Rhs, 1).first;         \
+          (Current).last  = YYRHSLOC (Rhs, N).last;            \
+        }                                                      \
+      else                                                     \
+        {                                                      \
+          (Current).first = (Current).last = YYRHSLOC (Rhs, 0).last; \
+        }                                                      \
+      yyclear_attr(yyval);                                     \
+    } while (0)
+)___";
   fout<<"%}\n";
   gen_code(fout,grmcode,0,0);
   for(auto s:symbols)
@@ -1713,10 +2006,7 @@ void create_grmfile(ostream& fout,const string &fn, List<Grule> rules)
         fout<<"%destructor { ";
         if(astprint_flag)
           fout<<"if(yydebug_flag==2) ast::astprint(cout,$$); else ";
-        if(yyinterpret_flag)
-          fout<<"yyinterpret($$); ";
-        else
-          fout<<"; ";
+        fout<<"YYINTERPRET($$,scanner); ";
         if(need_destroy(tip))
            fout<<"ast::destroy($$); ";
         fout<<"} "<<symbols[id].altname<<"\n";
@@ -1771,20 +2061,23 @@ void create_grmfile(ostream& fout,const string &fn, List<Grule> rules)
             }
             match act {
               rule gempty(): 
-                fout<<" { yyclear_attr(yyval); }\n";
+                if(locations_flag!=2)
+                  fout<<"\t{ yyclear_attr(yyval); }\n";
+                else
+                  fout<<"\n";
               rule gcode(cc):
-                { fout<<"\t{ yyclear_attr(yyval);";
-                  if(locations_flag==2)
-                    fout<<" set_yyloc(yyloc);";
+                { fout<<"\t{";
+                  if(locations_flag!=2)
+                    fout<<" yyclear_attr(yyval);";
                   gen_mode=2;
                   gen_code_line(fout,cc,0,elist.size());
                   fout<<" }\n";
                 }
               rule gterm(t):
-                { fout<<"\t{ yyclear_attr(yyval);";
-                  if(locations_flag==2)
-                    fout<<" set_yyloc(yyloc);";
-                  show_line(fout,t->yyloc.first_line,t->yyloc.first_column-2);
+                { fout<<"\t{";
+                  if(locations_flag!=2)
+                    fout<<" yyclear_attr(yyval);";
+                  show_line(fout,t->yyloc.first.line,t->yyloc.first.column-2);
                   fout<<"$$=";
                   gen_mode=2;
                   gen_code(fout,t,elist.size());
@@ -1831,19 +2124,28 @@ else
 #include <string>
 #include <iostream>
 #include <exception>
+#include <utility>
+#include <vector>
 #include <initializer_list>
-
-#ifndef YYLTYPE_IS_DECLARED
+)___";
+if(locations_flag==2)
+fout<<R"___(
+struct YYPTYPE {
+  int line;
+  short file, column;
+};
 struct YYLTYPE {
-  int first_line;
-  int first_column;
-  int last_line;
-  int last_column;
+  YYPTYPE first,last;
+  YYLTYPE(int fl=0,int fc=0,int ll=0,int lc=0, int ff=0){ 
+     first.line=fl; first.column=fc;
+     last.line=ll; last.column=lc;
+     first.file=last.file=ff;
+  }
 };
 #define YYLTYPE_IS_DECLARED 1
 #define YYLTYPE_IS_TRIVIAL 1
-#endif
-
+)___";
+fout<<R"___(
 namespace ast {
 
 template <typename T> inline void destroy(T& p) { }
@@ -2035,6 +2337,8 @@ template <typename T> List<T> begin(List<T> l);
 template <typename T> List<T> end(List<T> l);
 template <typename T> bool operator==(const List<T> &l, const List<T> &r);
 template <typename T> List<T> &operator++(List<T> &l);
+template <typename T> void destroy(List<T> &l);
+
 template <typename T>
 class List {
   struct Node {
@@ -2045,6 +2349,18 @@ class List {
   Node *first;
   Node *last;
   size_t _size;
+  void add_last(Node *n) { 
+    n->tail=nullptr;
+    ++_size;  
+    if(first==nullptr) first=last=n;
+    else { last->tail=n; last=n; }
+  }
+  void add_first(Node *n) { 
+    n->tail=first;
+    ++_size;
+    if(first==nullptr) first=last=n; 
+    else first=n;
+  }
 public:
   List()=default;
   List(std::nullptr_t) { first=last=nullptr; _size=0; }
@@ -2052,7 +2368,8 @@ public:
   T &operator*() { return first->head; }
   T *operator->() { return &(first->head); }
   T &operator[](size_t i);
-  size_t size() { return _size; }
+  size_t size() const { return _size; }
+  template <typename UnaryPredicate> List<T> split(UnaryPredicate pred);
   List<T>& operator=(std::nullptr_t) { first=nullptr; last=nullptr; return *this; }
   
   friend List<T> cons<T>(const T& p);
@@ -2067,23 +2384,45 @@ fout<<R"___(
 )___";
 if(uselist_flag)
 fout<<R"___(
-  template <typename Z> friend  List<Z*> cons(Z *p);
+  template <typename Z> friend List<Z*> cons(Z *p);
   template <typename Z> friend List<Z*> cons(List<Z*> l, Z *p);
   template <typename Z> friend List<Z*> cons(Z* p, List<Z*> l);
   
   friend List<T> cons<T>(List<T> l1, List<T> l2);
   friend List<T> begin<T>(List<T> l);
   friend List<T> end<T>(List<T> l);
+  friend void destroy<T>(List<T> &l);
   friend bool operator==<T>(const List<T> &l, const List<T> &r);
   friend List<T> &operator++ <T>(List<T> &l);
   operator bool() const { return first!=nullptr; }
   bool operator!() const { return first==nullptr; }
 };
 template <typename T> 
-void destroy(List<T> &l) {  
-  for(auto &x:l)
-    destroy(x);
+void destroy(List<T> &l) {
+  List<T> t,r=begin(l),e=end(l); 
+  while(r!=e)
+  { t=r; 
+    ++r;
+    destroy(t.first->head);
+    delete t.first;
+  }
   l=nullptr;
+}
+template <typename T> 
+  template <typename UnaryPredicate>
+List<T> List<T>::split(UnaryPredicate pred)
+{ List<T> r1=nullptr,r2=nullptr;
+  List<T> t,r=begin(*this),e=end(*this); 
+  while(r!=e)
+  { t=r;
+    ++r;
+    if(pred(t.first->head))
+      r1.add_last(t.first);
+    else
+      r2.add_last(t.first);
+  }
+  *this=r2;
+  return r1;
 }
 template <typename T>
 List<T>::List(std::initializer_list<T> v)
@@ -2146,33 +2485,21 @@ if(uselist_flag && (usestring_flag || usevalue_flag))
 fout<<R"___(
 template <typename T>
 List<T> cons(const Value<T> & p)
-{ List<T> r(nullptr);
-  if(!p) return r;
-  r.first=r.last=new typename List<T>::Node(p,nullptr);
-  r._size=1;
-  return r;
+{ 
+  if(!p) return List<T>(nullptr);
+  return cons(static_cast<T>(p));
 }
 template <typename T>
 List<T> cons(List<T> l, const Value<T> &p)
 { 
   if(!p) return l;
-  if(l.first==nullptr) return cons(p);
-  List<T> r;
-  r.first=l.first;
-  r.last=l.last->tail=new typename List<T>::Node(p,nullptr);
-  r._size=l._size+1;
-  return r;
+  return cons(l,static_cast<T>(p));
 }
 template <typename T>
 List<T> cons(const Value<T> &p, List<T> l)
 {
   if(!p) return l;
-  if(l.first==nullptr) return cons(p);
-  List<T> r;
-  r.first=new typename List<T>::Node(p,l.first);
-  r.last=l.last;
-  r._size=l._size+1;
-  return r;
+  return cons(static_cast<T>(p),l);
 }
 )___";
 if(uselist_flag)
@@ -2252,13 +2579,6 @@ inline List<T> operator++(List<T> &l, int)
   return r;
 }
 )___";
-  if(locations_flag==2)
-fout<<R"___(
-extern YYLTYPE yylloc;
-void init_yyloc(YYLTYPE &);
-void set_yyloc(const YYLTYPE&);
-void set_yyloc(int, int);
-)___";
 fout<<R"___(
 #ifndef AST_BASE_DOMAIN
 #define AST_BASE_DOMAIN 1
@@ -2267,7 +2587,7 @@ struct _domain {
 if(locations_flag==2)
 fout<<R"___(
   YYLTYPE yyloc;
-  _domain() { init_yyloc(yyloc); }
+  _domain(const YYLTYPE *_loc) { if(_loc) yyloc=*_loc; else memset(&yyloc,0,sizeof(yyloc)); }
 )___";
 fout<<R"___(
   virtual ~_domain(){}
@@ -2285,6 +2605,8 @@ fout<<R"___(
     if(visitor_flag==2)
       fout<<"struct "<<d.first<<"_visitor;\n";
     fout<<"struct "<<d.first<<"_domain : _domain {\n";
+    if(locations_flag==2)
+      fout<<"\t"<<d.first<<"_domain(const YYLTYPE *_loc):_domain(_loc) {}\n";
     if(visitor_flag==2)
       fout<<"\tvirtual void accept("<<d.first<<"_visitor*, void*)=0;\n";
     fout<<"};\n";
@@ -2300,15 +2622,18 @@ fout<<R"___(
       fout<<"\t"<<type_mark(n.second.types[j],0)<<" f"<<j<<"_;\n";
     }
     fout<<"\t"<<n.first<<"_node(";
-    for(int j=1;j<n.second.types.size();++j) 
-    {
-      fout<<type_mark(n.second.types[j],1)<<" a"<<j;
-      if(j<n.second.types.size()-1)
-        fout<<", ";
-    }
     if(n.second.types.size()>1)
     {
-      fout<<"):";
+      for(int j=1;j<n.second.types.size();++j) 
+      {
+        fout<<type_mark(n.second.types[j],1)<<" a"<<j;
+        if(j<n.second.types.size()-1)
+          fout<<", ";
+        else if(locations_flag==2)
+          fout<<", const YYLTYPE *_loc=nullptr):"<<n.second.types[0]<<"_domain(_loc), ";
+        else
+          fout<<"):";
+      }
       for(int j=1;j<n.second.types.size();++j)
       {
         fout<<"f"<<j<<"_(a"<<j<<")";
@@ -2316,19 +2641,31 @@ fout<<R"___(
           fout<<", ";
       }
     }
+    else if(locations_flag==2)
+      fout<<"const YYLTYPE *_loc=nullptr):"<<n.second.types[0]<<"_domain(_loc) ";
     else
       fout<<")";
     fout<<"{}\n";
-    fout<<"\t~"<<n.first<<"_node() {\n";
+    int kd=0;
     for(int j=1;j<n.second.types.size();++j)
     { string t=n.second.types[j];
       if(t=="std::string"s) ;
       else if(need_destroy(t))
-      {
-        fout<<"\t  destroy(f"<<j<<"_);\n";
-      }
+        ++kd;
     }
-    fout<<"\t}\n";
+    if(kd>0)
+    {
+      fout<<"\t~"<<n.first<<"_node() {\n";
+      for(int j=1;j<n.second.types.size();++j)
+      { string t=n.second.types[j];
+        if(t=="std::string"s) ;
+        else if(need_destroy(t))
+        {
+          fout<<"\t  destroy(f"<<j<<"_);\n";
+        }
+      }
+      fout<<"\t}\n";
+    }
     if(visitor_flag==2)
       fout<<"\tvoid accept("<<n.second.types[0]<<"_visitor*, void*);\n";
     fout<<"};\n";
@@ -2336,11 +2673,17 @@ fout<<R"___(
   for(auto &n:nodes)
   { 
     fout<<"inline "<<n.second.types[0]<<" "<<n.first<<"(";
+     
     for(int j=1;j<n.second.types.size();++j) 
     {
       fout<<type_mark(n.second.types[j],1)<<" a"<<j;
       if(j<n.second.types.size()-1)
         fout<<", ";
+    }
+    if(locations_flag==2)
+    { if(n.second.types.size()>1)
+        fout<<", ";
+      fout<<"const YYLTYPE *_loc=nullptr";
     }
     fout<<") {\n";
     fout<<"\treturn new "<<n.first<<"_node(";
@@ -2349,6 +2692,11 @@ fout<<R"___(
       fout<<"a"<<j;
       if(j<n.second.types.size()-1)
         fout<<", ";
+    }
+    if(locations_flag==2)
+    { if(n.second.types.size()>1)
+        fout<<", ";
+      fout<<"_loc";
     }
     fout<<");\n"
         <<"}\n";
@@ -2392,10 +2740,8 @@ if(using_list.size()==0 && ast_flag==0)
   if(locations_flag==1)
     fout<<"extern int yylineno;\n";
   fout<<"int yyliteral(const std::string&);\n"
-        "void yystart(FILE *);\n"
-        "void yystart(std::istream&);\n"
         "int yywrap();\n"
-        "int yyparse();\n";
+        "int yyparse(void*);\n";
   if(main_flag)
     fout<<"extern const char* yyinputfile;\n"
           "extern int yydebug_flag;\n";
@@ -2410,26 +2756,32 @@ if(using_list.size()==0 && ast_flag==0)
   fout<<"inline void yyclear_attr(YYSTYPE&v) { memset(&v,0,sizeof(v)); }\n"
           "#define YYSTYPE_IS_TRIVIAL 1\n"
           "#define YYSTYPE_IS_DECLARED 1\n";
+  fout<<"void yylex_destroy(void*);\n"
+        "const char* yylex_filename(void*, int=-1);\n"
+        "void yylex_init(void**);\n"
+        "void yylex_init(void**, FILE*, const std::string&);\n"
+        "void yylex_init(void**, std::istream &, const std::string&);\n";
   if(locations_flag==2)
-    fout<<"int yylex(YYSTYPE*, YYLTYPE*);\n";
+    fout<<"int yylex(YYSTYPE*, YYLTYPE*, void*);\n";
   else
-    fout<<"int yylex(YYSTYPE*);\n";
+    fout<<"int yylex(YYSTYPE*, void*);\n";
   if(lexprint_flag)
     fout<<"void lexprint(std::ostream&, int, YYSTYPE&);\n";
 }
 if(using_list.size()==0)
 {
   fout<<"void yyerror(const std::string &);\n";
-  if(locations_flag)
-    fout<<"void yyerror(int, int, const std::string&);\n";
   if(locations_flag==2)
-    fout<<"void yyerror(YYLTYPE*, const char*);\n";
+    fout<<"void yyerror(YYLTYPE*, void*, const char*);\n";
   else
-    fout<<"void yyerror(const char*);\n";
+    fout<<"void yyerror(void*, const char*);\n";
 }
-if(yyinterpret_flag && root_tip!="")
+if(yyinterpret_flag && root_tip!="") {
   fout<<"void yyinterpret("<<type_mark(root_tip,1)<<");\n";
-
+  fout<<"#define YYINTERPRET(ast,scanner) yyinterpret(ast)\n";
+}
+else
+  fout<<"#define YYINTERPRET(ast,scanner)\n";
 gen_mode=0;
 gen_code_line(fout,hcode,0,0);
 
@@ -2507,8 +2859,10 @@ void create_cppfile(ostream& fout,const string &fn, List<Code> code)
   fout<<"#include \""<<fn<<".h\"\n";
   gen_mode=0;
   gen_code_line(fout,code,0,0);
+  fout<<"\n";
   fout<<vout.str();
   vout.clear();
+  fout<<"\n";
   if(using_list.size()==0 && ast_flag==0)
   {
     unsigned cset[8]={0};
@@ -2549,20 +2903,21 @@ void create_cppfile(ostream& fout,const string &fn, List<Code> code)
   if(yyerror_flag && using_list.size()==0)
   {
     if(locations_flag==2)
-      fout<<"void yyerror(YYLTYPE *yylloc, const char* msg)\n{ yyerror(yylloc->last_line,yylloc->last_column,msg); }\n";
+    {
+      fout<<"void yyerror(YYLTYPE *yyloc, void *scanner, const char* msg) {\n"
+            "  std::cerr<<yylex_filename(scanner,yyloc->last.file)<<':'<<yyloc->last.line<<':'<<yyloc->last.column<<\": \";\n"
+            "  yyerror(msg);\n"
+            "}\n";
+    }
     else if(locations_flag==1)
-      fout<<"void yyerror(const char* msg)\n{ yyerror(yylineno,0,msg); }\n";
+      fout<<"void yyerror(void *scanner, const char* msg) {\n"
+            "  std::cerr<<yylex_filename(scanner,-1)<<':'<<yylineno<<\": \";\n"
+            "  yyerror(msg);\n"
+            "}\n";
     else
-      fout<<"void yyerror(const char* msg)\n{ yyerror(std::string(msg)); }\n";
+      fout<<"void yyerror(void *, const char* msg)\n{ yyerror(msg); }\n";
     fout<<"void yyerror(const std::string& msg)\n"
-          "{ std::cerr<<msg<<\"\\n\";\n"
-          "  exit(1);\n"
-          "}\n";
-    if(locations_flag)
-    fout<<"void yyerror(int l, int c, const std::string& msg)\n"
-          "{\n"
-          "  std::cerr<<yyinputfile<<':'<<l<<':'<<c<<\": \";\n"
-          "  std::cerr<<msg<<\"\\n\";\n"
+          "{ std::cerr<<msg<<std::endl;\n"
           "  exit(1);\n"
           "}\n";
   }
@@ -2570,37 +2925,45 @@ void create_cppfile(ostream& fout,const string &fn, List<Code> code)
   {
     fout<<"int yydebug_flag=0;\n"
           "const char* yyinputfile=\"\";\n"
-          "int yylex_loop()\n"
+          "int yylex_loop(void *scanner)\n"
           "{ int t;\n"
           "  YYSTYPE yylval;\n";
     if(locations_flag==2)
       fout<<"  YYLTYPE yylloc;\n"
-            "  while(t=yylex(&yylval,&yylloc))\n";
+            "  while(t=yylex(&yylval,&yylloc,scanner))\n";
     else  
-      fout<<"  while(t=yylex(&yylval))\n";
-    if(lexprint_flag)
-      fout<<"    if(yydebug_flag==1) {\n"
-            "      lexprint(std::cout,t,yylval); std::cout<<std::endl;\n"
+      fout<<"  while(t=yylex(&yylval,scanner))\n";
+    if(lexprint_flag) {
+      fout<<"    if(yydebug_flag==1) {\n";
+    if(locations_flag==2)
+      fout<<"      cout<<yylloc.first.line<<':'<<yylloc.first.column<<' '<<yylloc.last.line<<':'<<yylloc.last.column<<' ';\n";
+      fout<<"      lexprint(std::cout,t,yylval); std::cout<<std::endl;\n"
             "    }\n";
+    }
     else
       fout<<"    ;\n";
     fout<<"  return 0;\n"
           "}\n"
           "int yyparse_file(const char* name)\n"
-          "{ if(name[0])\n"
-          "  { FILE *f=fopen(name,\"r\");\n"
-          "    if(!f) yyerror(\"Can't open file \"+std::string(name));\n"
-          "    else yystart(f);\n"
-          "  }\n"
+          "{ void *scanner=nullptr;\n"
+          "  FILE *f=nullptr;\n"
           "  yyinputfile=name;\n"
           "#ifdef YYINIT\n"
           "  YYINIT(name);\n"
-          "#endif\n";
+          "#endif\n"
+          "  if(name[0])\n"
+          "  { f=fopen(name,\"r\");\n"
+          "    if(!f) yyerror(\"Can't open file \"+std::string(name));\n"
+          "    yylex_init(&scanner,f,name);\n"
+          "  }\n"
+          "  else yylex_init(&scanner);\n";
     if(!grmfile_exist && yyparse_flag)
-      fout<<"  return yylex_loop();\n";
+      fout<<"  int res=yylex_loop(scanner);\n";
     else
-      fout<<"  return (yydebug_flag==1)?yylex_loop():yyparse();\n";
-    fout<<"}\n"
+      fout<<"  int res=(yydebug_flag==1)?yylex_loop(scanner):yyparse(scanner);\n";
+    fout<<"  yylex_destroy(scanner);\n"
+          "  return res;\n"
+          "}\n"
           "int main(int argc, char **argv)\n"
           "{\n"
           "#ifdef YYARGINIT\n"
@@ -2632,23 +2995,6 @@ void create_cppfile(ostream& fout,const string &fn, List<Code> code)
       }
     }
     fout<<"  }\n}\n";
-  }
-  if(locations_flag==2 &&  using_list.size()==0)
-  {
-    fout<<"namespace ast {\n"
-          "YYLTYPE yylloc;\n"
-          "static int yyline_save,yycolumn_save;\n"
-          "void set_yyloc(const YYLTYPE& yyloc)\n"
-          "{ yylloc=yyloc; }\n"
-          "void init_yyloc(YYLTYPE& yyloc)\n"
-          "{ yyloc=yylloc; }\n"
-          "void set_yyloc(int l, int c)\n"
-          "{ yylloc.first_line=yyline_save;\n"
-          "  yylloc.first_column=yycolumn_save;\n"
-          "  yylloc.last_line=yyline_save=l;\n"
-          "  yylloc.last_column=yycolumn_save=c;\n"
-          "}\n"
-          "}\n";
   }
   if(astprint_flag && domains.size()>0)
   {
@@ -3097,10 +3443,11 @@ void yyinterpret(Program prg)
 
       calc_types(lrules);
       setup_default(grules);
-
-      reorder_rules(grules);
-      grules=cons(grules,new_rules);
-      new_rules=nullptr;
+      if(opers.size())
+      { reorder_rules(grules);
+        grules=cons(grules,new_rules);
+        new_rules=nullptr;
+      }
       split_rules(grules);
       grules=cons(grules,new_rules);
       if(yydebug_flag==4) { astprint(cout,grules); return; }
