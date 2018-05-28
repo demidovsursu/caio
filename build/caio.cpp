@@ -2243,6 +2243,7 @@ public:
 )___";
   fout<<R"___(
 %init {
+  filenames.push_back("");
   activefile=0;
 %}
 )___";
@@ -2353,13 +2354,13 @@ void yylex_init(yyscan_t *scanner, FILE *f, const std::string& n)
 { yyscanner_t* scanp=new yyscanner_t;
   *scanner = static_cast<yyscan_t>(scanp);
   scanp->in(f);
-  scanp->filenames.push_back(n);
+  scanp->filenames[0]=n;
 }
 void yylex_init(yyscan_t *scanner, std::istream &s, const std::string& n)
 { yyscanner_t* scanp=new yyscanner_t;
   *scanner = static_cast<yyscan_t>(scanp);
   scanp->in(s);
-  scanp->filenames.push_back(n);
+  scanp->filenames[0]=n;
 }
 )___";
 }
@@ -2415,7 +2416,7 @@ if(auto _node1=dynamic_cast<grmrule_node *>(_match1)) {
   auto &id=_node1->f1_;
   auto &body=_node1->f2_;
 
-	#line 2010 "caio.caio"
+	#line 2011 "caio.caio"
                           
       if(!empty_type(symbols[id].tip)) {
         string tip=symbols[id].tip;
@@ -2435,7 +2436,7 @@ if(auto _node1=dynamic_cast<grmrule_node *>(_match1)) {
   }
 }
 
-	#line 2026 "caio.caio"
+	#line 2027 "caio.caio"
   
   for(auto &uf:union_fields)
   { string t=uf.first;
@@ -2466,7 +2467,7 @@ if(auto _node1=dynamic_cast<grmrule_node *>(_match1)) {
   auto &id=_node1->f1_;
   auto &body=_node1->f2_;
 
-	#line 2052 "caio.caio"
+	#line 2053 "caio.caio"
                            
       fout<<symbols[id].altname<<"\t:";
       int flg=0;
@@ -2477,7 +2478,7 @@ if(auto _node2=dynamic_cast<xrule_node *>(_match2)) {
   auto &elist=_node2->f1_;
   auto &act=_node2->f2_;
 
-	#line 2058 "caio.caio"
+	#line 2059 "caio.caio"
                                
           {
             for(auto &e:elist)
@@ -2485,7 +2486,7 @@ if(auto _node2=dynamic_cast<xrule_node *>(_match2)) {
 if(auto _node3=dynamic_cast<trmelem_node *>(_match3)) {
   auto &str=_node3->f1_;
 
-	#line 2062 "caio.caio"
+	#line 2063 "caio.caio"
                                  
                 auto &sym=symbols[normalize_terminal(str)];
                 if(sym.terminalnumber>0)
@@ -2496,19 +2497,19 @@ if(auto _node3=dynamic_cast<trmelem_node *>(_match3)) {
 else if(auto _node3=dynamic_cast<symelem_node *>(_match3)) {
   auto &str=_node3->f1_;
 
-	#line 2068 "caio.caio"
+	#line 2069 "caio.caio"
                                  
                 fout<<" "<<symbols[str].altname;
               }
 }
 
-	#line 2070 "caio.caio"
+	#line 2071 "caio.caio"
               
             }
             { auto &_match3=act;
 if(auto _node3=dynamic_cast<gempty_node *>(_match3)) {
 
-	#line 2073 "caio.caio"
+	#line 2074 "caio.caio"
                              
                 if(locations_flag!=2)
                   fout<<"\t{ yyclear_attr(yyval); }\n";
@@ -2518,7 +2519,7 @@ if(auto _node3=dynamic_cast<gempty_node *>(_match3)) {
 else if(auto _node3=dynamic_cast<gcode_node *>(_match3)) {
   auto &cc=_node3->f1_;
 
-	#line 2078 "caio.caio"
+	#line 2079 "caio.caio"
                              
                 { fout<<"\t{";
                   if(locations_flag!=2)
@@ -2531,7 +2532,7 @@ else if(auto _node3=dynamic_cast<gcode_node *>(_match3)) {
 else if(auto _node3=dynamic_cast<gterm_node *>(_match3)) {
   auto &t=_node3->f1_;
 
-	#line 2086 "caio.caio"
+	#line 2087 "caio.caio"
                             
                 { fout<<"\t{";
                   if(locations_flag!=2)
@@ -2545,13 +2546,13 @@ else if(auto _node3=dynamic_cast<gterm_node *>(_match3)) {
             }
 }
 
-	#line 2096 "caio.caio"
+	#line 2097 "caio.caio"
             
           }
         }
 }
 
-	#line 2098 "caio.caio"
+	#line 2099 "caio.caio"
         
         flg=1;
       }
@@ -2559,7 +2560,7 @@ else if(auto _node3=dynamic_cast<gterm_node *>(_match3)) {
     }
 }
 
-	#line 2102 "caio.caio"
+	#line 2103 "caio.caio"
     
   }
   fout<<"%%\n";
@@ -3520,7 +3521,7 @@ string type_arg(const string &a, List<Gelem> gl, const string &nd, int nn)
 if(auto _node1=dynamic_cast<trmelem_node *>(_match1)) {
   auto &s=_node1->f1_;
 
-	#line 3059 "caio.caio"
+	#line 3060 "caio.caio"
                     
          string idn=normalize_terminal(s);
          if(empty_type(symbols[idn].tip))
@@ -3530,7 +3531,7 @@ if(auto _node1=dynamic_cast<trmelem_node *>(_match1)) {
 else if(auto _node1=dynamic_cast<symelem_node *>(_match1)) {
   auto &s=_node1->f1_;
 
-	#line 3064 "caio.caio"
+	#line 3065 "caio.caio"
                     
          auto &sym=symbols[s];
          if(nn>0)
@@ -3544,7 +3545,7 @@ else if(auto _node1=dynamic_cast<symelem_node *>(_match1)) {
     }
 }
 
-	#line 3074 "caio.caio"
+	#line 3075 "caio.caio"
     
     return ""s;
   }
@@ -3604,7 +3605,7 @@ void calc_types(List<Code> code, int flg)
 if(auto _node1=dynamic_cast<lexem_node *>(_match1)) {
   auto &t=_node1->f1_;
 
-	#line 3130 "caio.caio"
+	#line 3131 "caio.caio"
                   
       if(t=="$$"s)
         ref_assigned=1;
@@ -3612,14 +3613,14 @@ if(auto _node1=dynamic_cast<lexem_node *>(_match1)) {
 else if(auto _node1=dynamic_cast<pcode_node *>(_match1)) {
   auto &cc=_node1->f1_;
 
-	#line 3133 "caio.caio"
+	#line 3134 "caio.caio"
                    
       calc_types(cc,flg);
     }
 else if(auto _node1=dynamic_cast<token_node *>(_match1)) {
   auto &val=_node1->f1_;
 
-	#line 3135 "caio.caio"
+	#line 3136 "caio.caio"
                     
       if(flg)
       {
@@ -3638,7 +3639,7 @@ else if(auto _node1=dynamic_cast<token_node *>(_match1)) {
   }
 }
 
-	#line 3150 "caio.caio"
+	#line 3151 "caio.caio"
   
 }
 void calc_types(List<Lrule> lrules)
@@ -3649,14 +3650,14 @@ if(auto _node1=dynamic_cast<lexrule_node *>(_match1)) {
   auto &re=_node1->f2_;
   auto &act=_node1->f3_;
 
-	#line 3155 "caio.caio"
+	#line 3156 "caio.caio"
                               
       { auto &_match2=act;
 if(auto _node2=dynamic_cast<lterm_node *>(_match2)) {
   auto &id=_node2->f1_;
   auto &t=_node2->f2_;
 
-	#line 3157 "caio.caio"
+	#line 3158 "caio.caio"
                          
           if(id && t)
           { string idn=normalize_terminal(id);
@@ -3670,7 +3671,7 @@ if(auto _node3=dynamic_cast<tnode_node *>(_match3)) {
   auto &idt=_node3->f1_;
   auto &args=_node3->f2_;
 
-	#line 3166 "caio.caio"
+	#line 3167 "caio.caio"
                                    
                 if(nodes.find(idt)==nodes.end())
                   nodes[idt]=nodeinfo(args.size()+1);
@@ -3687,7 +3688,7 @@ if(auto _node3=dynamic_cast<tnode_node *>(_match3)) {
               }
 }
 
-	#line 3179 "caio.caio"
+	#line 3180 "caio.caio"
               
             }
             else
@@ -3697,7 +3698,7 @@ if(auto _node3=dynamic_cast<tnode_node *>(_match3)) {
   auto &idt=_node3->f1_;
   auto &args=_node3->f2_;
 
-	#line 3184 "caio.caio"
+	#line 3185 "caio.caio"
                                    
                 if(is_builtin_type(idt))
                   assign_type(tip,idt,id);
@@ -3705,13 +3706,13 @@ if(auto _node3=dynamic_cast<tnode_node *>(_match3)) {
 else if(auto _node3=dynamic_cast<snode_node *>(_match3)) {
   auto &str=_node3->f1_;
 
-	#line 3187 "caio.caio"
+	#line 3188 "caio.caio"
                               
                 assign_type(tip,type_arg(str,nullptr,id,0),id);
               }
 }
 
-	#line 3189 "caio.caio"
+	#line 3190 "caio.caio"
               
             }
           }
@@ -3719,19 +3720,19 @@ else if(auto _node3=dynamic_cast<snode_node *>(_match3)) {
 else if(auto _node2=dynamic_cast<lcode_node *>(_match2)) {
   auto &cc=_node2->f1_;
 
-	#line 3192 "caio.caio"
+	#line 3193 "caio.caio"
                       
          ref_assigned=0;
          calc_types(cc,1);
       }
 }
 
-	#line 3195 "caio.caio"
+	#line 3196 "caio.caio"
       
     }
 }
 
-	#line 3196 "caio.caio"
+	#line 3197 "caio.caio"
     
   }
 }
@@ -3744,7 +3745,7 @@ if(auto _node1=dynamic_cast<grmrule_node *>(_match1)) {
   auto &id=_node1->f1_;
   auto &body=_node1->f2_;
 
-	#line 3204 "caio.caio"
+	#line 3205 "caio.caio"
                            
       if(symbols[id].defrule!=nullptr)
         yyerror("Redefined symbol "s+id);
@@ -3759,20 +3760,20 @@ if(auto _node2=dynamic_cast<xrule_node *>(_match2)) {
   auto &els=_node2->f1_;
   auto &act=_node2->f2_;
 
-	#line 3214 "caio.caio"
+	#line 3215 "caio.caio"
                              
           { { auto &_match3=act;
 if(auto _node3=dynamic_cast<gterm_node *>(_match3)) {
   auto &t=_node3->f1_;
 
-	#line 3216 "caio.caio"
+	#line 3217 "caio.caio"
                           
               { auto &_match4=t;
 if(auto _node4=dynamic_cast<tnode_node *>(_match4)) {
   auto &idt=_node4->f1_;
   auto &args=_node4->f2_;
 
-	#line 3218 "caio.caio"
+	#line 3219 "caio.caio"
                                     
                   string tip;
                   if(idt=="cons"s)
@@ -3854,7 +3855,7 @@ if(auto _node4=dynamic_cast<tnode_node *>(_match4)) {
 else if(auto _node4=dynamic_cast<snode_node *>(_match4)) {
   auto &str=_node4->f1_;
 
-	#line 3295 "caio.caio"
+	#line 3296 "caio.caio"
                               
                   string tip=type_arg(str,els,id,0);
                   assign_type(sym.tip,tip,id);
@@ -3863,13 +3864,13 @@ else if(auto _node4=dynamic_cast<snode_node *>(_match4)) {
               }
 }
 
-	#line 3300 "caio.caio"
+	#line 3301 "caio.caio"
               
             }
 else if(auto _node3=dynamic_cast<gcode_node *>(_match3)) {
   auto &cc=_node3->f1_;
 
-	#line 3301 "caio.caio"
+	#line 3302 "caio.caio"
                            
                if(empty_type(sym.tip)) 
                {
@@ -3893,26 +3894,26 @@ else if(auto _node3=dynamic_cast<gcode_node *>(_match3)) {
             }
 else if(auto _node3=dynamic_cast<gempty_node *>(_match3)) {
 
-	#line 3321 "caio.caio"
+	#line 3322 "caio.caio"
                           
                { assign_type(sym.tip,"?"s,id);
                }
             }
 }
 
-	#line 3324 "caio.caio"
+	#line 3325 "caio.caio"
             
           }
         }
 }
 
-	#line 3326 "caio.caio"
+	#line 3327 "caio.caio"
         
       }
     }
 }
 
-	#line 3328 "caio.caio"
+	#line 3329 "caio.caio"
     
   }
   set<string> old_syms;
@@ -4031,7 +4032,7 @@ if(auto _node1=dynamic_cast<prog_node *>(_match1)) {
   auto &grules=_node1->f3_;
   auto &code=_node1->f4_;
 
-	#line 3440 "caio.caio"
+	#line 3441 "caio.caio"
                                         
     {
       collect_defsymbols(grules);
@@ -4090,7 +4091,7 @@ if(auto _node1=dynamic_cast<prog_node *>(_match1)) {
   }
 }
 
-	#line 3495 "caio.caio"
+	#line 3496 "caio.caio"
   
 }
 

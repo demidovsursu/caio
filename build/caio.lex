@@ -12,6 +12,7 @@ public:
 %}
 
 %init {
+  filenames.push_back("");
   activefile=0;
 %}
 
@@ -283,11 +284,11 @@ void yylex_init(yyscan_t *scanner, FILE *f, const std::string& n)
 { yyscanner_t* scanp=new yyscanner_t;
   *scanner = static_cast<yyscan_t>(scanp);
   scanp->in(f);
-  scanp->filenames.push_back(n);
+  scanp->filenames[0]=n;
 }
 void yylex_init(yyscan_t *scanner, std::istream &s, const std::string& n)
 { yyscanner_t* scanp=new yyscanner_t;
   *scanner = static_cast<yyscan_t>(scanp);
   scanp->in(s);
-  scanp->filenames.push_back(n);
+  scanp->filenames[0]=n;
 }
