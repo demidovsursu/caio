@@ -63,6 +63,7 @@ void add_using(const string &o);
 extern string filename,filepath;
 void get_args(int &, char **&);
 void set_input(const char*);
+Gelem replace_altid(Gelem&, const string &);
 #define YYARGINIT(argc,argv) get_args(argc,argv)
 #define YYINIT(name) set_input(name)
 }
@@ -78,7 +79,7 @@ void set_input(const char*);
 %type <Term> term
 %type <Symbol> symbol
 %type <Gaction> rcode
-%type <Gelem> elem
+%type <Gelem> elem lblelem
 %type <Code> xelem
 %type <Mrule> mrule
 %type <Vrule> vrule
@@ -87,6 +88,8 @@ void set_input(const char*);
 cliteral R"('([^'\\\n\t]|\\[^\n\t])+')"
 sliteral R"(\"([^\"\\\n\t]|\\[^\n\t])+\")"
 qliteral R"(\?[^?\n \t]+\?)"
+symbol [a-zA-Z\xC0-\xFF\xB8\xA8][-._a-zA-Z0-9\xC0-\xFF\xB8\xA8]*
+symbolid [a-zA-Z\xC0-\xFF\xB8\xA8][_a-zA-Z0-9\xC0-\xFF\xB8\xA8]*
 ident [_a-zA-Z][_a-zA-Z0-9]*
 number R"(\d+[a-zA-Z0-9']*|\d[0-9']*(\.[0-9']*)?([eE][-+]?\d+[a-zA-Z0-9]*)?)"
 char_const R"('([^\\'\n]|\\(x[a-fA-F0-9]+|[0-9]+|.))')"
@@ -98,10 +101,9 @@ string_const R"(\"([^\\\"\n]|\\.)*\")"
 ^"%using" "%using"
 ^"%operator" "%operator"
 ^{ident}                  { $$=yytext; BEGIN(S_RE2); return ?id?; }
-
 \d+                        ?number?
 <INITIAL,S_LEX2>"%{"|"{"           { yy_push_state(S_CODE);  return "%{"; }
-<INITIAL,S_GRM>[a-zA-Z\xC0-\xFF\xB8\xA8][-_a-zA-Z0-9\xC0-\xFF\xB8\xA8]* ?id?
+<INITIAL,S_GRM>{symbol} ?id?
 <INITIAL,S_LEX2,S_GRM,S_TOKEN>{cliteral}|{sliteral}|{qliteral} { 
             $$=yytext; if(YYSTATE==S_TOKEN) yy_pop_state(); return ?terminal?; }
 [ \t]  ;
@@ -160,7 +162,7 @@ string_const R"(\"([^\\\"\n]|\\.)*\")"
 <S_TERM,S_CODE,S_LIST>{ident} ?id?
 <S_TERM,S_CODE,S_LIST>{number} ?const?
 <S_LIST,S_CODE>"$$"|"@$" ?ref?
-<S_TERM,S_LIST,S_CODE>"$"[0-9]+ ?ref?
+<S_TERM,S_LIST,S_CODE>"$"[0-9]+|"$"\[({symbol}|{cliteral}|{sliteral}|{qliteral})\]|"$"{symbolid} ?ref?
 
 <S_GRM,S_NODE,S_LIST>"//".*\n ;
 <S_GRM>^"%%".*\n { BEGIN(S_CODE); caio_mode=M_CODE; return ?%%code?; }
@@ -172,7 +174,6 @@ string_const R"(\"([^\\\"\n]|\\.)*\")"
 <S_GRM>"/)" ']'
 <S_GRM>"(:" '{'
 <S_GRM>":)" '}'
-<S_GRM>:   '='
 <S_GRM>"/" '|'
 <S_GRM>"<" { yy_push_state(S_TERM); return '<'; }
 
@@ -248,25 +249,28 @@ alist : lelem                                 %{ string s; for(auto x:$1) s+=x; 
       | alist lelem                           %{ string s; for(auto x:$2) s+=x; $$=$1+s; }
       ;
 
-grule : ?id? '=' erule                        <grmrule($1,$3)>
+grule : ?id? ('='|':') erule                  <grmrule($1,$3)>
       ;
 erule : xrule { '|' xrule }                   <cons($1,$2)>
       ;
-xrule : { elem [ ',' ] } rcode                <xrule($1,$2)>
+xrule : { lblelem [ ',' ] } rcode             <xrule($1,$2)>
       ;
+lblelem : ?id? ':' elem                       %{ $$=replace_altid($3,$1); }
+        | elem                    
+        ; 
 rcode :                                       <gempty()>
       | '<' term '>'                          <gterm($2)>
       | "%{" xcode '}'                        <gcode($2)>
       ;
-elem : ?terminal?                             <trmelem($1)>
-     | ?id?                                   <symelem($1)>
-     | '(' erule ')'                          <varelem($2)>
-     | '(' erule ')' '*'                      <repelem0($2)>
-     | '{' erule '}'                          <repelem0($2)>
-     | '(' erule ')' '+'                      <repelem1($2)>
-     | '{' erule '}' '-'                      <repelem1($2)>
-     | '(' erule ')' '?'                      <optelem($2)>
-     | '[' erule ']'                          <optelem($2)>
+elem : ?terminal?                      	      <trmelem($1,"")>
+     | ?id?                                   <symelem($1,"")>
+     | '(' erule ')'                          <varelem($2,"")>
+     | '(' erule ')' '*'                      <repelem0($2,"")>
+     | '{' erule '}'                          <repelem0($2,"")>
+     | '(' erule ')' '+'                      <repelem1($2,"")>
+     | '{' erule '}' '-'                      <repelem1($2,"")>
+     | '(' erule ')' '?'                      <optelem($2,"")>
+     | '[' erule ']'                          <optelem($2,"")>
      ;
 xcode : { ( xelem 
           | "default"                         <lexem("default"s)> 
@@ -401,6 +405,14 @@ ostringstream vout;
 string default_tip="int"s;
 vector<string> using_list;
 
+namespace ast {
+Gelem symelem(const string& sym)
+{ return symelem(sym,"");
+}
+Gelem varelem(List<Xrule> xl)
+{ return varelem(xl,"");
+}
+}
 void set_input(const char* name)
 {
   bnf_flag=1;
@@ -557,6 +569,26 @@ void switch_option(const string &o)
    else if(o.substr(0,6)=="expect"s)
      expect_flag=stoi(o.substr(6));
 }
+Gelem replace_altid(Gelem &e, const string &newid)
+{
+  match e {
+  rule trmelem(id,altid): 
+    altid=newid;
+  rule symelem(id,altid):
+    altid=newid;
+  rule varelem(xl,altid):
+    altid=newid;
+  rule optelem(xl,altid):
+    altid=newid;
+  rule repelem1(xl,altid):
+    altid=newid;
+  rule repelem0(xl,altid):
+    altid=newid;
+  }
+  Gelem r=e;
+  e=nullptr;
+  return r;
+}
 set<string> builtin_types={"int"s,"std::string"s,"long"s,"double"s,"int64_t"s,"char"s};
 bool is_pointer_type(const string &t)
 {
@@ -664,6 +696,8 @@ string encode_symbol(const string &sym)
       s[0]=toupper(s[0]);
     }
     else if(ch=='-')
+      s="_";
+    else if(ch=='.')
       s="_";
     else if(ch==168)
       s="Yo";
@@ -1070,18 +1104,18 @@ void collect_terminals(List<Xrule> rules)
       { ++n;
         bool flg=refs.find(n)!=refs.end();
         match e {
-        rule trmelem(id): 
+        rule trmelem(id,altid): 
           add_symbol(normalize_terminal(id),"");
-        rule symelem(id):
+        rule symelem(id,altid):
           if(flg)
             symbols[id].used=true;
-        rule varelem(xl):
+        rule varelem(xl,altid):
           collect_terminals(xl);
-        rule optelem(xl):
+        rule optelem(xl,altid):
           collect_terminals(xl);
-        rule repelem1(xl):
+        rule repelem1(xl,altid):
           collect_terminals(xl);
-        rule repelem0(xl):
+        rule repelem0(xl,altid):
           collect_terminals(xl);
         }
       }
@@ -1106,15 +1140,15 @@ bool is_empty_rule(List<Xrule> rules)
         for(auto e:elist)
         {
           match e {
-          rule trmelem(id):
+          rule trmelem(id,altid):
             if(!empty_type(symbols[normalize_terminal(id)].tip)) return false;
-          rule varelem(xl):
+          rule varelem(xl,altid):
             if(!is_empty_rule(xl)) return false;
-          rule optelem(xl):
+          rule optelem(xl,altid):
             if(!is_empty_rule(xl)) return false;
-          rule repelem1(xl):
+          rule repelem1(xl,altid):
             if(!is_empty_rule(xl)) return false;
-          rule repelem0(xl):
+          rule repelem0(xl,altid):
             if(!is_empty_rule(xl)) return false;
           default:
             return false;
@@ -1141,23 +1175,23 @@ void setup_default(List<Xrule> rules, bool need)
           for(auto e:elist)
           { ++n;
             match e {
-            rule trmelem(id):
+            rule trmelem(id,altid):
               if(!empty_type(symbols[normalize_terminal(id)].tip))
               { i=n; ++k;
               }
-            rule varelem(xl):
+            rule varelem(xl,altid):
               if(!is_empty_rule(xl))
               { i=n; ++k;
               }
-            rule optelem(xl):
+            rule optelem(xl,altid):
               if(!is_empty_rule(xl))
               { i=n; ++k;
               }
-            rule repelem1(xl):
+            rule repelem1(xl,altid):
               if(!is_empty_rule(xl))
               { i=n; ++k;
               }
-            rule repelem0(xl):
+            rule repelem0(xl,altid):
               if(!is_empty_rule(xl))
               { i=n; ++k;
               }
@@ -1183,11 +1217,11 @@ void setup_default(List<Xrule> rules, bool need)
       { ++n;
         bool flg=refs.find(n)!=refs.end();
         match e {
-        rule trmelem(id):
+        rule trmelem(id,altid):
           if(flg)
             if(empty_type(symbols[normalize_terminal(id)].tip))
               std::cerr<<"Warning: ref to terminal "<<id<<" with undefined type\n";
-        rule symelem(id): 
+        rule symelem(id,altid): 
           if(flg) 
           { if(!symbols[id].used)
             {
@@ -1198,13 +1232,13 @@ void setup_default(List<Xrule> rules, bool need)
               }
             }
           }
-        rule varelem(xl):
+        rule varelem(xl,altid):
           setup_default(xl,flg);
-        rule optelem(xl):
+        rule optelem(xl,altid):
           setup_default(xl,flg);
-        rule repelem1(xl):
+        rule repelem1(xl,altid):
           setup_default(xl,flg);
-        rule repelem0(xl):
+        rule repelem0(xl,altid):
           setup_default(xl,flg);
         }
       }
@@ -1250,18 +1284,18 @@ void check_undefsymbols(List<Xrule> rules)
     rule xrule(elist, a):
       for(auto e:elist)
       { match e {
-        rule trmelem(id): ;
-        rule symelem(id): 
+        rule trmelem(id,altid): ;
+        rule symelem(id,altid): 
         { if(defined_symbols.find(id)==defined_symbols.end())
             yyerror("Undefined symbol "s+id);
         }
-        rule varelem(xl):
+        rule varelem(xl,altid):
           check_undefsymbols(xl);
-        rule optelem(xl):
+        rule optelem(xl,altid):
           check_undefsymbols(xl);
-        rule repelem1(xl):
+        rule repelem1(xl,altid):
           check_undefsymbols(xl);
-        rule repelem0(xl):
+        rule repelem0(xl,altid):
           check_undefsymbols(xl);
         }
       }
@@ -1277,25 +1311,28 @@ void check_undefsymbols(List<Grule> rules)
   }
 }
 List<Grule> new_rules=nullptr;
-string new_symbol()
-{ string id;
-  do {
+string new_symbol(const string &id1)
+{ string id=encode_symbol(id1);
+  while(id==""s || symbol_names.find(id)!=symbol_names.end()) {
     id="g_"s+to_string(++symbol_uid);
-  } while(symbol_names.find(id)!=symbol_names.end());
+  } 
   add_symbol(id,"");
   return id;
+}
+string new_symbol()
+{ return new_symbol(""s);
 }
 bool is_symelem(Gelem e, const string &id)
 { bool res=false;
   match e {
-    rule symelem(s): if(s==id) res=true;
+    rule symelem(s,altid): if(s==id) res=true;
   }
   return res;
 }
 bool is_trmelem(Gelem e)
 { bool res=false;
   match e {
-    rule trmelem(s): res=true;
+    rule trmelem(s,altid): res=true;
   }
   return res; 
 }
@@ -1303,8 +1340,8 @@ int prior_elem(Gelem e, int n)
 {
   int res=0;
   match e {
-    rule trmelem(s): res=oper_prior(s,n);
-    rule varelem(xl):
+    rule trmelem(s,altid): res=oper_prior(s,n);
+    rule varelem(xl,altid):
        res=100;
        for(auto x:xl)
        { match x {
@@ -1323,7 +1360,7 @@ string type_elem(Gelem e, int n)
 {
   string res=""s;
   match e {
-    rule trmelem(s): res=oper_type(s,n);
+    rule trmelem(s,altid): res=oper_type(s,n);
   }
   return res;
 }
@@ -1395,7 +1432,7 @@ void reorder_body(const string &gid, const string &id, List<Xrule> &rules)
           else
           { List<Xrule> part1=nullptr;
             match elist[1] {
-            rule varelem(xl):
+            rule varelem(xl,altid):
               part1=xl.split([=](Xrule x) { return is_operrule(x,min_prior,2,"xfx"s);} );
               if(!xl)
               { 
@@ -1462,7 +1499,7 @@ void reorder_body(const string &gid, const string &id, List<Xrule> &rules)
           else
           { List<Xrule> part1=nullptr;
             match elist[0] {
-            rule varelem(xl):
+            rule varelem(xl,altid):
               part1=xl.split([=](Xrule x) { return is_operrule(x,min_prior,1,"fx"s);} );
               if(!xl)
               { 
@@ -1513,7 +1550,7 @@ void reorder_body(const string &gid, const string &id, List<Xrule> &rules)
           else
           { List<Xrule> part1=nullptr;
             match elist[1] {
-            rule varelem(xl):
+            rule varelem(xl,altid):
               part1=xl.split([=](Xrule x) { return is_operrule(x,min_prior,0,"xf"s);} );
               if(!xl)
               { 
@@ -1577,11 +1614,11 @@ bool check_all_gempty(List<Xrule> rules)
   return res;
 }
 void split_rules(List<Xrule> rules);
-void make_rep(int one, List<Xrule> &xl, Gelem &e)
+void make_rep(int one, List<Xrule> &xl, Gelem &e, const string& altid)
 { 
   split_rules(xl);
-  string id1(new_symbol());
-  string id2(new_symbol());
+  string id1(new_symbol(altid));
+  string id2(new_symbol(altid==""s?""s:"elem_"s+altid));
   Gaction g1;
   Gaction g2;
   if(check_all_gempty(xl))
@@ -1605,20 +1642,20 @@ void split_rules(List<Xrule> rules)
     rule xrule(elist, a):
       for(auto &e:elist)
       { match e {
-        rule varelem(xl):
+        rule varelem(xl,altid):
           split_rules(xl);
-          string id(new_symbol());
+          string id(new_symbol(altid));
           new_rules=cons(new_rules,grmrule(id,xl));
           xl=nullptr; destroy(e); e=symelem(id);
-        rule optelem(xl):
+        rule optelem(xl,altid):
           split_rules(xl);
-          string id(new_symbol());
+          string id(new_symbol(altid));
           new_rules=cons(new_rules,grmrule(id,cons(xrule(nullptr,gempty()),xl)));
           xl=nullptr; destroy(e); e=symelem(id);
-        rule repelem1(xl): 
-          make_rep(1,xl,e);
-        rule repelem0(xl): 
-          make_rep(0,xl,e);
+        rule repelem1(xl,altid): 
+          make_rep(1,xl,e,altid);
+        rule repelem0(xl,altid): 
+          make_rep(0,xl,e,altid);
         }
       }
     }
@@ -1630,6 +1667,120 @@ void split_rules(List<Grule> rules)
     rule grmrule(id, body):
       split_rules(body);
     } 
+  }
+}
+regex xref_re(R"(\$(\[('.*?'|\".*?\"|\?.*?\?|[a-zA-Z\xC0-\xFF\xB8\xA8][-._a-zA-Z0-9\xC0-\xFF\xB8\xA8]*)\]|[a-zA-Z\xC0-\xFF\xB8\xA8][_a-zA-Z0-9\xC0-\xFF\xB8\xA8]*))");
+void replace_ref(string& t, map<string,int>& refs)
+{ string r,a;
+  string s=t;
+  smatch m;
+  while(regex_search(s,m,xref_re))
+  { r+=m.prefix().str();
+    a=m.str().substr(1);
+    int n=-2;
+    if(a[0]=='[')
+      a=a.substr(1,a.size()-2);
+    auto it=refs.find(a);
+    if(it!=refs.end())
+      n=it->second;
+    if(n==0)
+      r+="$$"s;
+    else if(n>0)
+      r+="$"s+to_string(n);
+    else if(n==-2)
+      yyerror("Unknown ref to "s+a);
+    else
+      yyerror("Ambiguous ref to "s+a);
+    s=m.suffix();
+  }
+  r+=s;
+  t=r;
+}
+void replace_refs(Term t, map<string,int>& refs)
+{ match t {
+    rule tnode(id, args):
+    { for(auto &a:args)
+        replace_ref(a,refs);
+    }
+    rule snode(str): 
+      replace_ref(str,refs);
+  }
+}
+void replace_refs(List<Code> code, map<string,int>& refs)
+{ for(auto c:code)
+  match c 
+  { rule pcode(cc):
+      replace_refs(cc,refs);
+    rule lexem(val):
+      if(val.size()>0 && val[0]=='$')
+        replace_ref(val,refs);
+  }
+}
+void replace_refs(List<Code> cc)
+{
+}
+void add_altid(map<string,int>& refs, const string &id, int n)
+{ auto it=refs.find(id);
+  if(it==refs.end())
+    refs[id]=n;
+  else
+    it->second=-1;
+}
+void replace_refs(List<Xrule> rules, const string &idr)
+{
+  for(auto r:rules)
+  { match r {
+    rule xrule(elist, a):
+      map<string,int> refs;
+      if(idr!=""s) add_altid(refs,idr,0);
+      int n=0;
+      for(auto &e:elist)
+      { ++n;
+        match e {
+        rule trmelem(id,altid):
+          if(altid!=""s)
+            add_altid(refs,altid,n);
+          else
+            add_altid(refs,id,n);
+        rule symelem(id,altid):
+          if(altid!=""s)
+            add_altid(refs,altid,n);
+          else
+            add_altid(refs,id,n);
+        rule varelem(xl,altid):
+          if(altid!=""s)
+            add_altid(refs,altid,n);
+          replace_refs(xl,altid);
+        rule optelem(xl,altid):
+          if(altid!=""s)
+            add_altid(refs,altid,n);
+          replace_refs(xl,altid);
+        rule repelem1(xl,altid): 
+          if(altid!=""s)
+            add_altid(refs,altid,n);
+          replace_refs(xl,altid);
+        rule repelem0(xl,altid): 
+          if(altid!=""s)
+            add_altid(refs,altid,n);
+          replace_refs(xl,altid);
+        }
+      }
+      match a {
+      rule gempty():
+      rule gterm(t):
+        replace_refs(t,refs);
+      rule gcode(cc):
+        replace_refs(cc,refs);
+      }
+    }
+  }
+}
+void replace_refs(List<Grule> rules)
+{ for(auto r:rules)
+  { match r {
+    rule grmrule(id, body):
+      replace_refs(body,id);
+    }
   }
 }
 string literal_to_re(const string &s)
@@ -1932,7 +2083,7 @@ public: YYLTYPE yylloc;
   if(locations_flag==2)
     fout<<R"___(
 int yylex(YYSTYPE* lvalp, YYLTYPE* llocp, void* scanner) {
-  yyscanner_t* scanp=reinterpret_cast<yyscanner_t*>(scanner);
+  yyscanner_t* scanp=static_cast<yyscanner_t*>(scanner);
   yyclear_attr(*lvalp);
   int t=scanp->yylex(*lvalp);
   *llocp=scanp->yylloc;
@@ -1941,7 +2092,7 @@ int yylex(YYSTYPE* lvalp, YYLTYPE* llocp, void* scanner) {
 )___";
   fout<<R"___(
 const char *yylex_filename(void* scanner, int i)
-{ yyscanner_t* scanp=reinterpret_cast<yyscanner_t*>(scanner);
+{ yyscanner_t* scanp=static_cast<yyscanner_t*>(scanner);
   if(i>=scanp->filenames.size()) return "";
   if(i<0) i=scanp->activefile;
   return scanp->filenames[i].c_str();
@@ -1975,6 +2126,7 @@ void create_grmfile(ostream& fout,const string &fn, List<Grule> rules)
     fout<<"%expect"<<expect_flag<<"\n";
   fout<<"%{\n";
   fout<<"#include \""<<fn<<".h\"\n";
+if(locations_flag==2)
   fout<<R"___(
 #define YYLLOC_DEFAULT(Current, Rhs, N)                        \
     do {                                                       \
@@ -2060,13 +2212,13 @@ void create_grmfile(ostream& fout,const string &fn, List<Grule> rules)
           {
             for(auto &e:elist)
             { match e {
-              rule trmelem(str): 
+              rule trmelem(str,altid): 
                 auto &sym=symbols[normalize_terminal(str)];
                 if(sym.terminalnumber>0)
                   fout<<" T_"<<sym.terminalnumber<<" ";
                 else
                   fout<<" "<<sym.altname;
-              rule symelem(str): 
+              rule symelem(str,altid): 
                 fout<<" "<<symbols[str].altname;
               }
             }
@@ -2725,7 +2877,7 @@ fout<<R"___(
       fout<<"\tT operator()("<<d.first<<" v){ T r; if(v) v->accept(this,&r); return r; }\n";
       for(auto &n:d.second.nodes)
       { fout<<"\tvirtual T visit("<<n<<"_node*) { return T(); }\n";
-        fout<<"\tvoid visit("<<n<<"_node* n,void* r) { *reinterpret_cast<T*>(r)=visit(n); }\n";
+        fout<<"\tvoid visit("<<n<<"_node* n,void* r) { *static_cast<T*>(r)=visit(n); }\n";
       }
       fout<<"};\n";
       fout<<"template <> struct "<<d.first<<"_Tvisitor<void>: "<<d.first<<"_visitor {\n";
@@ -3057,12 +3209,12 @@ string type_arg(const string &a, List<Gelem> gl, const string &nd, int nn)
       yyerror("Reference "s+a+" to unknown element");
     Gelem e=gl[na-1];
     match e {
-    rule trmelem(s):
+    rule trmelem(s,altid):
          string idn=normalize_terminal(s);
          if(empty_type(symbols[idn].tip))
             yyerror("Terminal "s+string(s)+" don't have a type"s);
          return symbols[idn].tip;
-    rule symelem(s):
+    rule symelem(s,altid):
          auto &sym=symbols[s];
          if(nn>0)
            sym.node_link.push_back(make_pair(nd,nn));
@@ -3449,6 +3601,9 @@ void yyinterpret(Program prg)
       collect_terminals(lrules);
       collect_terminals(grules);
       collect_terminals(code);
+
+      replace_refs(grules);
+      replace_refs(code);
 
       new_rules=nullptr;
 
