@@ -19,24 +19,24 @@ int find_id(string name);
 \d+ 					?number?  <stoi(yytext)>
 [a-zA-Z]\w*				?ident?  <find_id(yytext)>
 %% // rules for parser
-program = stmts 			<$1>
+program = stmts 			<$stmts>
  		  ;
 stmts = { stmt '\n' }
 	;
 stmt = 					
-  | ?ident? '=' expr 			<assign($1,$3)>
-  | "input" ?ident?  			<input($2)>
-  | "print" expr  			<print($2)> 
-  | "while" expr '\n' stmts "wend" 	<whilestmt($2,$4)> 	
+  | ?ident? '=' expr 			<assign($[?ident?],$expr)>
+  | "input" ?ident?  			<input($[?ident?])>
+  | "print" expr  			<print($expr)> 
+  | "while" expr '\n' stmts "wend" 	<whilestmt($expr,$stmts)> 	
   | "if" expr ["then"] '\n'  stmts
-     [ "else" '\n' stmts
-     ] "end" "if" 			<ifstmt($2,$5,$6)> 	
+     else.stmts:[ "else" '\n' stmts ]
+     "end" "if" 			<ifstmt($expr,$stmts,$[else.stmts])> 	
   ;
-expr = expr ('+'|'-'|'*'|'/')   expr	<op2($2,$1,$3)>
-    | '-' выр 				<op2('-',number(0),$2)>
+expr = x:expr op:('+'|'-'|'*'|'/') y:expr	<op2($op,$x,$y)>
+    | '-' x:expr 			<op2('-',number(0),$x)>
     | '(' expr ')' 
-    | ?number? 				<number($1)>
-    | ?ident?				<ident($1)>
+    | ?number? 				<number($[?number?])>
+    | ?ident?				<ident($[?ident?])>
     ;
 %%
 int mem[1000]; // memory for data
