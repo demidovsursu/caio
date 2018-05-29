@@ -84,6 +84,5 @@ int find_id(string name) // find an identifier
 ```
 
 TODO
-1. Named References
-2. Terget Lemon
-3. Target GPPG/GPLEX
+1. Terget Lemon
+2. Target GPPG/GPLEX
