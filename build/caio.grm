@@ -74,34 +74,35 @@
 %type <f9_> g_32
 %type <f11_> g_33
 %type <f12_> g_34
-%type <f4_> g_35
-%type <f13_> g_36
-%type <f14_> g_38
-%type <f3_> g_39
+%type <f4_> g_36
+%type <f13_> g_37
+%type <f14_> g_39
 %type <f15_> g_4
-%type <f16_> g_40
-%type <f6_> g_41
-%type <f16_> g_42
-%type <f6_> g_43
-%type <f16_> g_44
-%type <f17_> g_47
-%type <f18_> g_48
+%type <f3_> g_40
+%type <f16_> g_41
+%type <f6_> g_42
+%type <f16_> g_43
+%type <f6_> g_44
+%type <f16_> g_45
+%type <f17_> g_48
 %type <f18_> g_49
 %type <f19_> g_5
-%type <f17_> g_50
-%type <f20_> g_51
-%type <f21_> g_52
-%type <f9_> g_53
+%type <f18_> g_50
+%type <f17_> g_51
+%type <f20_> g_52
+%type <f21_> g_53
 %type <f9_> g_54
 %type <f9_> g_55
 %type <f9_> g_56
-%type <f1_> g_57
-%type <f9_> g_58
+%type <f9_> g_57
+%type <f1_> g_58
+%type <f9_> g_59
 %type <f15_> g_6
 %type <f19_> g_7
 %type <f5_> g_8
 %type <f22_> g_9
 %type <f22_> grule
+%type <f3_> lblelem
 %type <f23_> lcode
 %type <f9_> lelem
 %type <f9_> list
@@ -147,217 +148,222 @@
 %destructor { ast::destroy($$); } <f11_>
 %%
 program	: g_2 g_7 g_10 g_11	{
-	#line 203 "caio.caio"
+	#line 204 "caio.caio"
                                       $$=ast::prog($1,$2,$3,$4,&@$); }
 	;
 decl	: T_1004  '<' type1 '>' g_12	{
-	#line 205 "caio.caio"
+	#line 206 "caio.caio"
                                              $$=ast::decltypes($3,$5,&@$); }
 	| T_1003  g_15	{
-	#line 207 "caio.caio"
+	#line 208 "caio.caio"
                                                  for(auto o:$2) switch_option(o);  }
 	| T_1005  g_17	{
-	#line 208 "caio.caio"
+	#line 209 "caio.caio"
                                                  for(auto o:$2) add_using(o);  }
 	| T_1002  g_21	{
-	#line 211 "caio.caio"
+	#line 212 "caio.caio"
                                              $$=ast::decloper($2,&@$); }
 	| T_1016  T_1019 	{
-	#line 212 "caio.caio"
+	#line 213 "caio.caio"
                                              $$=ast::declre($1,$2,&@$); }
 	| T_1006  xcode '}'	{
-	#line 213 "caio.caio"
+	#line 214 "caio.caio"
                                              $$=ast::declcode(nullptr,$2,&@$); }
 	| T_1001  T_1016  T_1006  xcode '}'	{
-	#line 214 "caio.caio"
+	#line 215 "caio.caio"
                                              $$=ast::declcode($2,$4,&@$); }
 	;
 type1	: type2	{$$=$1; }
 	| type2 '?'	{
-	#line 217 "caio.caio"
+	#line 218 "caio.caio"
                                              $$=std::string($1+"?"s); }
 	| type2 '<' type2 '>'	{
-	#line 218 "caio.caio"
+	#line 219 "caio.caio"
                                              $$=std::string($1+"<"s+$3+">"s); }
 	| type2 '*'	{
-	#line 219 "caio.caio"
+	#line 220 "caio.caio"
                                              $$=std::string($1+"*"s); }
 	| type2 '<' type2 '>' '*'	{
-	#line 220 "caio.caio"
+	#line 221 "caio.caio"
                                              $$=std::string($1+"<"s+$3+">*"s); }
 	;
 type2	: T_1016 	{
-	#line 222 "caio.caio"
+	#line 223 "caio.caio"
                                              $$=std::string(($1=="string"s)?"std::string"s:$1); }
 	| T_1016  ':' ':' T_1016 	{
-	#line 223 "caio.caio"
+	#line 224 "caio.caio"
                                              $$=std::string($1+"::"s+$4); }
 	;
 symbol	: T_1022 	{
-	#line 225 "caio.caio"
+	#line 226 "caio.caio"
                                              $$=ast::terminal($1,&@$); }
 	| T_1016 	{
-	#line 226 "caio.caio"
+	#line 227 "caio.caio"
                                              $$=ast::ident($1,&@$); }
 	| T_1016  '(' g_25 ')'	{
-	#line 228 "caio.caio"
+	#line 229 "caio.caio"
                                              $$=ast::node($1,$3,&@$); }
 	;
 lrule	: g_29 T_1019  lcode	{
-	#line 234 "caio.caio"
+	#line 235 "caio.caio"
                                              $$=ast::lexrule($1,$2,$3,&@$); }
 	;
 term	: type2 '(' g_32 ')'	{
-	#line 237 "caio.caio"
+	#line 238 "caio.caio"
                                              $$=ast::tnode($1,$3,&@$); }
 	| T_1015 	{
-	#line 238 "caio.caio"
-                                             $$=ast::snode($1,&@$); }
-	| type2	{
 	#line 239 "caio.caio"
                                              $$=ast::snode($1,&@$); }
-	| T_1020 	{
+	| type2	{
 	#line 240 "caio.caio"
+                                             $$=ast::snode($1,&@$); }
+	| T_1020 	{
+	#line 241 "caio.caio"
                                              $$=ast::snode($1,&@$); }
 	;
 lcode	: g_33 g_34	{
-	#line 242 "caio.caio"
+	#line 243 "caio.caio"
                                              $$=ast::lterm($1,$2,&@$); }
 	| ';'	{
-	#line 243 "caio.caio"
+	#line 244 "caio.caio"
                                              $$=ast::lskip(&@$); }
 	| '|'	{
-	#line 244 "caio.caio"
+	#line 245 "caio.caio"
                                              $$=ast::lnext(&@$); }
 	| T_1006  xcode '}'	{
-	#line 245 "caio.caio"
+	#line 246 "caio.caio"
                                              $$=ast::lcode($2,&@$); }
 	;
 alist	: lelem	{
-	#line 247 "caio.caio"
+	#line 248 "caio.caio"
                                                  string s; for(auto x:$1) s+=x; $$=s;  }
 	| alist lelem	{
-	#line 248 "caio.caio"
+	#line 249 "caio.caio"
                                                  string s; for(auto x:$2) s+=x; $$=$1+s;  }
 	;
-grule	: T_1016  '=' erule	{
-	#line 251 "caio.caio"
+grule	: T_1016  g_35 erule	{
+	#line 252 "caio.caio"
                                              $$=ast::grmrule($1,$3,&@$); }
 	;
-erule	: xrule g_35	{
-	#line 253 "caio.caio"
+erule	: xrule g_36	{
+	#line 254 "caio.caio"
                                              $$=ast::cons($1,$2); }
 	;
-xrule	: g_38 rcode	{
-	#line 255 "caio.caio"
+xrule	: g_39 rcode	{
+	#line 256 "caio.caio"
                                              $$=ast::xrule($1,$2,&@$); }
 	;
+lblelem	: T_1016  ':' elem	{
+	#line 258 "caio.caio"
+                                                 $$=replace_altid($3,$1);  }
+	| elem	{$$=$1; }
+	;
 rcode	:	{
-	#line 257 "caio.caio"
+	#line 261 "caio.caio"
                                              $$=ast::gempty(&@$); }
 	| '<' term '>'	{
-	#line 258 "caio.caio"
+	#line 262 "caio.caio"
                                              $$=ast::gterm($2,&@$); }
 	| T_1006  xcode '}'	{
-	#line 259 "caio.caio"
+	#line 263 "caio.caio"
                                              $$=ast::gcode($2,&@$); }
 	;
 elem	: T_1022 	{
-	#line 261 "caio.caio"
-                                             $$=ast::trmelem($1,&@$); }
-	| T_1016 	{
-	#line 262 "caio.caio"
-                                             $$=ast::symelem($1,&@$); }
-	| '(' erule ')'	{
-	#line 263 "caio.caio"
-                                             $$=ast::varelem($2,&@$); }
-	| '(' erule ')' '*'	{
-	#line 264 "caio.caio"
-                                             $$=ast::repelem0($2,&@$); }
-	| '{' erule '}'	{
 	#line 265 "caio.caio"
-                                             $$=ast::repelem0($2,&@$); }
-	| '(' erule ')' '+'	{
+                                             $$=ast::trmelem($1,"",&@$); }
+	| T_1016 	{
 	#line 266 "caio.caio"
-                                             $$=ast::repelem1($2,&@$); }
-	| '{' erule '}' '-'	{
+                                             $$=ast::symelem($1,"",&@$); }
+	| '(' erule ')'	{
 	#line 267 "caio.caio"
-                                             $$=ast::repelem1($2,&@$); }
-	| '(' erule ')' '?'	{
+                                             $$=ast::varelem($2,"",&@$); }
+	| '(' erule ')' '*'	{
 	#line 268 "caio.caio"
-                                             $$=ast::optelem($2,&@$); }
-	| '[' erule ']'	{
+                                             $$=ast::repelem0($2,"",&@$); }
+	| '{' erule '}'	{
 	#line 269 "caio.caio"
-                                             $$=ast::optelem($2,&@$); }
+                                             $$=ast::repelem0($2,"",&@$); }
+	| '(' erule ')' '+'	{
+	#line 270 "caio.caio"
+                                             $$=ast::repelem1($2,"",&@$); }
+	| '{' erule '}' '-'	{
+	#line 271 "caio.caio"
+                                             $$=ast::repelem1($2,"",&@$); }
+	| '(' erule ')' '?'	{
+	#line 272 "caio.caio"
+                                             $$=ast::optelem($2,"",&@$); }
+	| '[' erule ']'	{
+	#line 273 "caio.caio"
+                                             $$=ast::optelem($2,"",&@$); }
 	;
-xcode	: g_41	{$$=$1; }
+xcode	: g_42	{$$=$1; }
 	;
-ncode	: g_43	{$$=$1; }
+ncode	: g_44	{$$=$1; }
 	;
 xelem	: T_1017 	{
-	#line 277 "caio.caio"
-                                             $$=ast::lexem($1,&@$); }
-	| T_1015 	{
-	#line 278 "caio.caio"
-                                             $$=ast::lexem($1,&@$); }
-	| T_1016 	{
-	#line 279 "caio.caio"
-                                             $$=ast::lexem($1,&@$); }
-	| ':'	{
-	#line 280 "caio.caio"
-                                             $$=ast::lexem(":"s,&@$); }
-	| T_1020 	{
 	#line 281 "caio.caio"
                                              $$=ast::lexem($1,&@$); }
-	| T_1021 	{
+	| T_1015 	{
 	#line 282 "caio.caio"
                                              $$=ast::lexem($1,&@$); }
-	| '{' xcode '}'	{
+	| T_1016 	{
 	#line 283 "caio.caio"
+                                             $$=ast::lexem($1,&@$); }
+	| ':'	{
+	#line 284 "caio.caio"
+                                             $$=ast::lexem(":"s,&@$); }
+	| T_1020 	{
+	#line 285 "caio.caio"
+                                             $$=ast::lexem($1,&@$); }
+	| T_1021 	{
+	#line 286 "caio.caio"
+                                             $$=ast::lexem($1,&@$); }
+	| '{' xcode '}'	{
+	#line 287 "caio.caio"
                                              $$=ast::pcode($2,&@$); }
-	| T_1008  list '{' g_45 g_50 '}'	{
-	#line 290 "caio.caio"
-                                             $$=ast::mcode($2,$5,&@$); }
-	| T_1011  T_1016  '<' T_1016  ',' T_1016  '>' '{' xcode g_51 '}'	{
+	| T_1008  list '{' g_46 g_51 '}'	{
 	#line 294 "caio.caio"
+                                             $$=ast::mcode($2,$5,&@$); }
+	| T_1011  T_1016  '<' T_1016  ',' T_1016  '>' '{' xcode g_52 '}'	{
+	#line 298 "caio.caio"
                                              $$=ast::vcode($2,$4,$6,$9,$10,&@$); }
 	| T_1022 	{
-	#line 295 "caio.caio"
+	#line 299 "caio.caio"
                                              $$=ast::token($1,&@$); }
 	;
 mrule	: T_1009  node ':' ncode	{
-	#line 297 "caio.caio"
+	#line 301 "caio.caio"
                                              $$=ast::mrule($2,$4,&@$); }
 	;
 vrule	: T_1010  node ':' ncode	{
-	#line 299 "caio.caio"
+	#line 303 "caio.caio"
                                              $$=ast::vrule($2,$4,&@$); }
 	;
-list	: lelem g_54	{
-	#line 302 "caio.caio"
+list	: lelem g_55	{
+	#line 306 "caio.caio"
                                              $$=ast::cons($1,$2); }
 	;
 lelem	: T_1017 	{
-	#line 304 "caio.caio"
+	#line 308 "caio.caio"
                                              $$=ast::cons($1); }
 	| T_1020 	{
-	#line 305 "caio.caio"
+	#line 309 "caio.caio"
                                              $$=ast::cons($1); }
 	| T_1016 	{
-	#line 306 "caio.caio"
+	#line 310 "caio.caio"
                                              $$=ast::cons($1); }
 	| T_1015 	{
-	#line 307 "caio.caio"
+	#line 311 "caio.caio"
                                              $$=ast::cons($1); }
 	| '(' list ')'	{
-	#line 308 "caio.caio"
+	#line 312 "caio.caio"
                                              $$=ast::cons(cons("("s,$2),")"s); }
 	;
-node	: T_1016  '(' g_58 ')'	{
-	#line 311 "caio.caio"
+node	: T_1016  '(' g_59 ')'	{
+	#line 315 "caio.caio"
                                              $$=ast::node2($1,$3,&@$); }
 	| T_1016 	{
-	#line 312 "caio.caio"
+	#line 316 "caio.caio"
                                              $$=ast::node1($1,&@$); }
 	;
 g_1	:
@@ -396,7 +402,7 @@ g_12	:
 	| g_12 g_13	{$$=ast::cons($1,$2); }
 	;
 g_14	: T_1016  '(' T_1018  ')'	{
-	#line 206 "caio.caio"
+	#line 207 "caio.caio"
                                              $$=std::string($1+$3); }
 	| T_1016 	{$$=$1; }
 	;
@@ -416,7 +422,7 @@ g_19	: g_20	{$$=ast::cons($1); }
 	| g_19 g_20	{$$=ast::cons($1,$2); }
 	;
 g_22	: '<' T_1016  '>' g_19	{
-	#line 210 "caio.caio"
+	#line 211 "caio.caio"
                                              $$=ast::cons($2,$4); }
 	;
 g_21	: g_22	{$$=ast::cons($1); }
@@ -429,7 +435,7 @@ g_23	:
 	;
 g_25	:
 	| type1 g_23	{
-	#line 227 "caio.caio"
+	#line 228 "caio.caio"
                                              $$=ast::cons($1,$2); }
 	;
 g_27	: ',' T_1016 	{$$=$2; }
@@ -438,10 +444,10 @@ g_26	:
 	| g_26 g_27	{$$=ast::cons($1,$2); }
 	;
 g_28	: '*'	{
-	#line 230 "caio.caio"
+	#line 231 "caio.caio"
                                              $$=ast::cons("*"s); }
 	| T_1016  g_26	{
-	#line 231 "caio.caio"
+	#line 232 "caio.caio"
                                              $$=ast::cons($1,$2); }
 	;
 g_29	:
@@ -454,7 +460,7 @@ g_30	:
 	;
 g_32	:
 	| alist g_30	{
-	#line 236 "caio.caio"
+	#line 237 "caio.caio"
                                              $$=ast::cons($1,$2); }
 	;
 g_33	:
@@ -463,76 +469,79 @@ g_33	:
 g_34	:
 	| '<' term '>'	{$$=$2; }
 	;
-g_36	: '|' xrule	{$$=$2; }
+g_35	: '='
+	| ':'
 	;
-g_35	:
-	| g_35 g_36	{$$=ast::cons($1,$2); }
+g_37	: '|' xrule	{$$=$2; }
 	;
-g_37	:
-	| ','
-	;
-g_39	: elem g_37	{$$=$1; }
+g_36	:
+	| g_36 g_37	{$$=ast::cons($1,$2); }
 	;
 g_38	:
-	| g_38 g_39	{$$=ast::cons($1,$2); }
+	| ','
 	;
-g_40	: xelem	{$$=$1; }
+g_40	: lblelem g_38	{$$=$1; }
+	;
+g_39	:
+	| g_39 g_40	{$$=ast::cons($1,$2); }
+	;
+g_41	: xelem	{$$=$1; }
 	| T_1007 	{
-	#line 272 "caio.caio"
+	#line 276 "caio.caio"
                                              $$=ast::lexem("default"s,&@$); }
 	;
-g_42	: g_40	{$$=$1; }
+g_43	: g_41	{$$=$1; }
 	;
-g_41	:
-	| g_41 g_42	{$$=ast::cons($1,$2); }
+g_42	:
+	| g_42 g_43	{$$=ast::cons($1,$2); }
 	;
-g_44	: xelem	{$$=$1; }
+g_45	: xelem	{$$=$1; }
 	;
-g_43	:
-	| g_43 g_44	{$$=ast::cons($1,$2); }
+g_44	:
+	| g_44 g_45	{$$=ast::cons($1,$2); }
 	;
-g_46	: T_1021 
+g_47	: T_1021 
 	;
-g_45	:
-	| g_45 g_46
+g_46	:
+	| g_46 g_47
 	;
-g_48	: mrule	{$$=$1; }
+g_49	: mrule	{$$=$1; }
 	;
-g_47	: g_48	{$$=ast::cons($1); }
-	| g_47 g_48	{$$=ast::cons($1,$2); }
+g_48	: g_49	{$$=ast::cons($1); }
+	| g_48 g_49	{$$=ast::cons($1,$2); }
 	;
-g_49	:
+g_50	:
 	| T_1007  ':' ncode	{
-	#line 287 "caio.caio"
+	#line 291 "caio.caio"
                                              $$=ast::mrule(nullptr,$3,&@$); }
 	;
-g_50	: g_47 g_49	{
-	#line 288 "caio.caio"
+g_51	: g_48 g_50	{
+	#line 292 "caio.caio"
                                              $$=ast::cons($1,$2); }
 	;
-g_52	: vrule	{$$=$1; }
+g_53	: vrule	{$$=$1; }
 	;
-g_51	: g_52	{$$=ast::cons($1); }
-	| g_51 g_52	{$$=ast::cons($1,$2); }
+g_52	: g_53	{$$=ast::cons($1); }
+	| g_52 g_53	{$$=ast::cons($1,$2); }
 	;
-g_53	: lelem	{$$=$1; }
+g_54	: lelem	{$$=$1; }
 	| ','	{
-	#line 301 "caio.caio"
+	#line 305 "caio.caio"
                                              $$=ast::cons(","s); }
 	;
-g_55	: g_53	{$$=$1; }
+g_56	: g_54	{$$=$1; }
 	;
-g_54	:
-	| g_54 g_55	{$$=ast::cons($1,$2); }
+g_55	:
+	| g_55 g_56	{$$=ast::cons($1,$2); }
 	;
-g_57	: ',' T_1016 	{$$=$2; }
+g_58	: ',' T_1016 	{$$=$2; }
 	;
-g_56	:
-	| g_56 g_57	{$$=ast::cons($1,$2); }
+g_57	:
+	| g_57 g_58	{$$=ast::cons($1,$2); }
 	;
-g_58	:
-	| T_1016  g_56	{
-	#line 310 "caio.caio"
+g_59	:
+	| T_1016  g_57	{
+	#line 314 "caio.caio"
                                              $$=ast::cons($1,$2); }
 	;
 %%

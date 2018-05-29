@@ -660,7 +660,8 @@ struct node2_node : Node_domain {
 };
 struct optelem_node : Gelem_domain {
 	List<Xrule> f1_;
-	optelem_node(List<Xrule> a1, const YYLTYPE *_loc=nullptr):Gelem_domain(_loc), f1_(a1){}
+	std::string f2_;
+	optelem_node(List<Xrule> a1, const std::string& a2, const YYLTYPE *_loc=nullptr):Gelem_domain(_loc), f1_(a1), f2_(a2){}
 	~optelem_node() {
 	  destroy(f1_);
 	}
@@ -687,14 +688,16 @@ struct prog_node : Program_domain {
 };
 struct repelem0_node : Gelem_domain {
 	List<Xrule> f1_;
-	repelem0_node(List<Xrule> a1, const YYLTYPE *_loc=nullptr):Gelem_domain(_loc), f1_(a1){}
+	std::string f2_;
+	repelem0_node(List<Xrule> a1, const std::string& a2, const YYLTYPE *_loc=nullptr):Gelem_domain(_loc), f1_(a1), f2_(a2){}
 	~repelem0_node() {
 	  destroy(f1_);
 	}
 };
 struct repelem1_node : Gelem_domain {
 	List<Xrule> f1_;
-	repelem1_node(List<Xrule> a1, const YYLTYPE *_loc=nullptr):Gelem_domain(_loc), f1_(a1){}
+	std::string f2_;
+	repelem1_node(List<Xrule> a1, const std::string& a2, const YYLTYPE *_loc=nullptr):Gelem_domain(_loc), f1_(a1), f2_(a2){}
 	~repelem1_node() {
 	  destroy(f1_);
 	}
@@ -705,7 +708,8 @@ struct snode_node : Term_domain {
 };
 struct symelem_node : Gelem_domain {
 	std::string f1_;
-	symelem_node(const std::string& a1, const YYLTYPE *_loc=nullptr):Gelem_domain(_loc), f1_(a1){}
+	std::string f2_;
+	symelem_node(const std::string& a1, const std::string& a2, const YYLTYPE *_loc=nullptr):Gelem_domain(_loc), f1_(a1), f2_(a2){}
 };
 struct terminal_node : Symbol_domain {
 	std::string f1_;
@@ -725,11 +729,13 @@ struct token_node : Code_domain {
 };
 struct trmelem_node : Gelem_domain {
 	std::string f1_;
-	trmelem_node(const std::string& a1, const YYLTYPE *_loc=nullptr):Gelem_domain(_loc), f1_(a1){}
+	std::string f2_;
+	trmelem_node(const std::string& a1, const std::string& a2, const YYLTYPE *_loc=nullptr):Gelem_domain(_loc), f1_(a1), f2_(a2){}
 };
 struct varelem_node : Gelem_domain {
 	List<Xrule> f1_;
-	varelem_node(List<Xrule> a1, const YYLTYPE *_loc=nullptr):Gelem_domain(_loc), f1_(a1){}
+	std::string f2_;
+	varelem_node(List<Xrule> a1, const std::string& a2, const YYLTYPE *_loc=nullptr):Gelem_domain(_loc), f1_(a1), f2_(a2){}
 	~varelem_node() {
 	  destroy(f1_);
 	}
@@ -824,8 +830,8 @@ inline Node node1(const std::string& a1, const YYLTYPE *_loc=nullptr) {
 inline Node node2(const std::string& a1, List<std::string> a2, const YYLTYPE *_loc=nullptr) {
 	return new node2_node(a1, a2, _loc);
 }
-inline Gelem optelem(List<Xrule> a1, const YYLTYPE *_loc=nullptr) {
-	return new optelem_node(a1, _loc);
+inline Gelem optelem(List<Xrule> a1, const std::string& a2, const YYLTYPE *_loc=nullptr) {
+	return new optelem_node(a1, a2, _loc);
 }
 inline Code pcode(List<Code> a1, const YYLTYPE *_loc=nullptr) {
 	return new pcode_node(a1, _loc);
@@ -833,17 +839,17 @@ inline Code pcode(List<Code> a1, const YYLTYPE *_loc=nullptr) {
 inline Program prog(List<Decl> a1, List<Lrule> a2, List<Grule> a3, List<Code> a4, const YYLTYPE *_loc=nullptr) {
 	return new prog_node(a1, a2, a3, a4, _loc);
 }
-inline Gelem repelem0(List<Xrule> a1, const YYLTYPE *_loc=nullptr) {
-	return new repelem0_node(a1, _loc);
+inline Gelem repelem0(List<Xrule> a1, const std::string& a2, const YYLTYPE *_loc=nullptr) {
+	return new repelem0_node(a1, a2, _loc);
 }
-inline Gelem repelem1(List<Xrule> a1, const YYLTYPE *_loc=nullptr) {
-	return new repelem1_node(a1, _loc);
+inline Gelem repelem1(List<Xrule> a1, const std::string& a2, const YYLTYPE *_loc=nullptr) {
+	return new repelem1_node(a1, a2, _loc);
 }
 inline Term snode(const std::string& a1, const YYLTYPE *_loc=nullptr) {
 	return new snode_node(a1, _loc);
 }
-inline Gelem symelem(const std::string& a1, const YYLTYPE *_loc=nullptr) {
-	return new symelem_node(a1, _loc);
+inline Gelem symelem(const std::string& a1, const std::string& a2, const YYLTYPE *_loc=nullptr) {
+	return new symelem_node(a1, a2, _loc);
 }
 inline Symbol terminal(const std::string& a1, const YYLTYPE *_loc=nullptr) {
 	return new terminal_node(a1, _loc);
@@ -854,11 +860,11 @@ inline Term tnode(const std::string& a1, List<std::string> a2, const YYLTYPE *_l
 inline Code token(const std::string& a1, const YYLTYPE *_loc=nullptr) {
 	return new token_node(a1, _loc);
 }
-inline Gelem trmelem(const std::string& a1, const YYLTYPE *_loc=nullptr) {
-	return new trmelem_node(a1, _loc);
+inline Gelem trmelem(const std::string& a1, const std::string& a2, const YYLTYPE *_loc=nullptr) {
+	return new trmelem_node(a1, a2, _loc);
 }
-inline Gelem varelem(List<Xrule> a1, const YYLTYPE *_loc=nullptr) {
-	return new varelem_node(a1, _loc);
+inline Gelem varelem(List<Xrule> a1, const std::string& a2, const YYLTYPE *_loc=nullptr) {
+	return new varelem_node(a1, a2, _loc);
 }
 inline Code vcode(const std::string& a1, const std::string& a2, const std::string& a3, List<Code> a4, List<Vrule> a5, const YYLTYPE *_loc=nullptr) {
 	return new vcode_node(a1, a2, a3, a4, a5, _loc);
@@ -945,6 +951,7 @@ void add_using(const string &o);
 extern string filename,filepath;
 void get_args(int &, char **&);
 void set_input(const char*);
+Gelem replace_altid(Gelem&, const string &);
 #define YYARGINIT(argc,argv) get_args(argc,argv)
 #define YYINIT(name) set_input(name)
 
