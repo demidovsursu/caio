@@ -925,7 +925,7 @@ void yyerror(YYLTYPE*, void*, const char*);
 void yyinterpret(Program);
 #define YYINTERPRET(ast,scanner) yyinterpret(ast)
 
-	#line 2 "caio.caio"
+	#line 19 "caio.caio"
   
 #include <string>
 #include <iostream>
