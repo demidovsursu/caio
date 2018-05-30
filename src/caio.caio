@@ -2258,9 +2258,9 @@ if(locations_flag==2)
             { match e {
               rule trmelem(str,altid): 
                 auto &sym=symbols[normalize_terminal(str)];
-                if(sym.terminalnumber>0)
+/*                if(sym.terminalnumber>0)
                   fout<<" T_"<<sym.terminalnumber<<" ";
-                else
+                else*/
                   fout<<" "<<sym.altname;
               rule symelem(str,altid): 
                 fout<<" "<<symbols[str].altname;
