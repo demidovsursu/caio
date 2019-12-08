@@ -89,7 +89,7 @@ Gelem replace_altid(Gelem&, const string &);
 %type <string> type1 type2 alist
 %type <Program> program
 %type <Decl> decl
-%type <Lrule> lrule
+%type <Lrule> lrule initcode
 %type <Grule> grule
 %type <Xrule> xrule
 %type <Laction> lcode
@@ -148,6 +148,7 @@ string_const R"(\"([^\\\"\n]|\\.)*\")"
                    BEGIN(S_CODE); caio_mode=M_CODE; return ?%%code?;
             }
 <S_LEX>^"<"/[^<] { BEGIN(S_STATE); return '<'; }
+<S_LEX>^"%{"/[ \t\n] { yy_push_state(S_CODE);  return "%{"; }
 <S_LEX2>"<" { yy_push_state(S_TERM); return '<'; }
 <S_LEX>R"(R\")" { $$=reinput(YY_SCANNER,0); BEGIN(S_LEX2);
              return ?re?; 
@@ -216,7 +217,7 @@ string_const R"(\"([^\\\"\n]|\\.)*\")"
 <S_TOKEN>. { yy_pop_state(); $$=yytext; return ?lexem?; }
 %%
 program : { [ decl ] '\n' }
-          [ ?%%lex? { [lrule ] '\n' }  ] 
+          [ ?%%lex? [initcode] { [lrule] '\n' }  <cons($2,$3)> ] 
           [ ?%%grm? { grule ';' }  ]  
           [ ?%%code? xcode  ]          <prog($1,$2,$3,$4)>
         ;
@@ -245,6 +246,8 @@ symbol : ?terminal?                           <terminal($1)>
        | ?id? '(' [ type1 { ',' type1 }       <cons($1,$2)>
                 ] ')'                         <node($1,$3)>
        ;
+initcode : "%{" xcode '}' '\n'                <lexinit($2)>
+        ;
 lrule : [ '<' ( '*'                           <cons("*"s)> 
                 | ?id? { ',' ?id? }           <cons($1,$2)>
               )
@@ -996,6 +999,7 @@ void add_constant(const string&id, const string&tip)
 List<Code> hcode(nullptr);
 List<Code> grmcode(nullptr);
 List<Code> lexcode(nullptr);
+List<Code> lexinitcode(nullptr);
 void collect_terminals(List<Code> code)
 { for(auto c:code)
   match c 
@@ -1300,7 +1304,8 @@ void setup_default(List<Grule> rules)
   } 
 }
 void collect_states(List<Lrule> rules)
-{ for(auto r:rules)
+{
+  for(auto r:rules)
   {
     match r {
     rule lexrule(sts, re, act):
@@ -1309,6 +1314,8 @@ void collect_states(List<Lrule> rules)
         { lex_states.insert(s);
         }
       }
+    rule lexinit(cc):
+       lexinitcode=cc;
     }
   }
 }
@@ -2016,7 +2023,7 @@ void create_lexfile(ostream& fout,const string &fn,List<Lrule> lrules)
     fout<<"%option noyywrap\n";
   fout<<"%option bison-bridge noline\n";
   fout<<"%top{\n"
-        "#include \""<<fn<<".h\"\n";
+        "#include \""<<fn<<".hpp\"\n";
   if(locations_flag!=0)
     fout<<"#define YY_USER_ACTION yysetloc();\n";
   if(locations_flag==1)
@@ -2072,13 +2079,14 @@ public: YYLTYPE yylloc;
     fout<<"\n";
   }
   fout<<"%%\n";
-  if(locations_flag==1)
+  if(locations_flag==1 || lexinitcode)
   {
     fout<<"%{\n";
     if(lex_states.size()>0)
       fout<<"default:";
     if(locations_flag==1)
       fout<<"\tyyclear_attr(yylval);\n";
+    gen_code_line(fout,lexinitcode,0,0);
     fout<<"%}\n";
   }
   if(literal_flag)
@@ -2141,13 +2149,18 @@ const char *yylex_filename(void* scanner, int i)
 void yylex_init(yyscan_t *scanner, FILE *f, const std::string& n)
 { yyscanner_t* scanp=new yyscanner_t;
   *scanner = static_cast<yyscan_t>(scanp);
-  scanp->in(f);
+  scanp->in(reflex::Input(f));
   scanp->filenames[0]=n;
+}
+void yylex_init(yyscan_t *scanner, const std::string& s)
+{ yyscanner_t* scanp=new yyscanner_t;
+  *scanner = static_cast<yyscan_t>(scanp);
+  scanp->in(s);
 }
 void yylex_init(yyscan_t *scanner, std::istream &s, const std::string& n)
 { yyscanner_t* scanp=new yyscanner_t;
   *scanner = static_cast<yyscan_t>(scanp);
-  scanp->in(s);
+  scanp->in(reflex::Input(s));
   scanp->filenames[0]=n;
 }
 )___";
@@ -2169,7 +2182,7 @@ void create_grmfile(ostream& fout,const string &fn, List<Grule> rules)
   if(expect_flag>=0)
     fout<<"%expect"<<expect_flag<<"\n";
   fout<<"%{\n";
-  fout<<"#include \""<<fn<<".h\"\n";
+  fout<<"#include \""<<fn<<".hpp\"\n";
 if(locations_flag==2)
   fout<<R"___(
 #define YYLLOC_DEFAULT(Current, Rhs, N)                        \
@@ -2211,7 +2224,7 @@ if(locations_flag==2)
         root_tip=tip;
         if(tip.back()=='?') tip.pop_back();
         fout<<"%destructor { ";
-        if(astprint_flag)
+        if(astprint_flag && main_flag)
           fout<<"if(yydebug_flag==2) ast::astprint(cout,$$); else ";
         fout<<"YYINTERPRET($$,scanner); ";
         if(need_destroy(tip))
@@ -2361,7 +2374,7 @@ void create_hfile(ostream& fout,const string &fn)
 if(using_list.size()>0)
 {
   for(auto &ul:using_list)
-    fout<<"#include \""<<ul<<".h\""<<"\n";
+    fout<<"#include \""<<ul<<".hpp\""<<"\n";
 }
 else
 {
@@ -2438,7 +2451,7 @@ public:
   friend inline std::ostream &operator<<(std::ostream&s, const Value<T> &v) { return s<<T(v); }
 };
 template <typename T>
-inline T operator+(const Value<T>& v1, const Value<T>& v2) { return T(v1)+T(v2); }
+inline Value<T> operator+(Value<T> v1, const Value<T>& v2) { return v1+=v2; }
 template <typename T>
 inline Value<T> operator-(Value<T> v1, const Value<T>& v2) { return v1-=v2; }
 template <typename T>
@@ -2479,13 +2492,13 @@ inline bool operator<=(const Value<T> &v1, const Value<T>& v2) { return !(v2<v1)
 template <typename T>
 inline bool operator>=(const Value<T> &v1, const Value<T>& v2) { return !(v1<v2); }
 template <typename T>
-Value<T> &operator++(Value<T> &v, int)
+Value<T> operator++(Value<T> &v, int)
 { Value<T> v2(v);
   ++v;
   return v2;
 }
 template <typename T>
-Value<T> &operator--(Value<T> &v, int)
+Value<T> operator--(Value<T> &v, int)
 { Value<T> v2(v);
   --v;
   return v2;
@@ -3000,6 +3013,7 @@ if(using_list.size()==0 && ast_flag==0)
     for(auto &f:union_fields)
       fout<<"  "<<to_field_type(f.first)<<" f"<<f.second<<"_;\n";
     fout<<"};\n";
+    fout<<"template <typename T> inline T& YYSTYPE_cast(YYSTYPE &v){ return *reinterpret_cast<T*>(&v); }\n";
   }
   else
     fout<<"typedef int YYSTYPE;\n";
@@ -3009,6 +3023,7 @@ if(using_list.size()==0 && ast_flag==0)
   fout<<"void yylex_destroy(void*);\n"
         "const char* yylex_filename(void*, int=-1);\n"
         "void yylex_init(void**);\n"
+        "void yylex_init(void**, const std::string&);\n"
         "void yylex_init(void**, FILE*, const std::string&);\n"
         "void yylex_init(void**, std::istream &, const std::string&);\n";
   if(locations_flag==2)
@@ -3106,7 +3121,7 @@ fout<<"}\n";
 }
 void create_cppfile(ostream& fout,const string &fn, List<Code> code)
 {
-  fout<<"#include \""<<fn<<".h\"\n";
+  fout<<"#include \""<<fn<<".hpp\"\n";
   gen_mode=0;
   gen_code_line(fout,code,0,0);
   fout<<"\n";
@@ -3730,7 +3745,7 @@ void yyinterpret(Program prg)
       fout.open(filepath+filename+".cpp"s);
       create_cppfile(fout,filename,code);
       fout.close();
-      fout.open(filepath+filename+".h"s);
+      fout.open(filepath+filename+".hpp"s);
       create_hfile(fout,filename);
       fout.close();
     }
