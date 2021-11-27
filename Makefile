@@ -6,7 +6,7 @@ all: bin/caio$(EXE)
 
 samples : bin/basic$(EXE) bin/calc$(EXE)
 
-bin/caio$(EXE) : build/caio.lex build/caio.grm build/caio.h build/caio.cpp
+bin/caio$(EXE) : build/caio.lex build/caio.grm build/caio.hpp build/caio.cpp
 	reflex --flex -obuild/caio.lex.cpp build/caio.lex
 	bison -obuild/caio.grm.cpp build/caio.grm
 	g++ -std=c++17 -I. -Ibuild -o bin/caio build/caio.cpp build/caio.grm.cpp build/caio.lex.cpp -lreflex

@@ -682,6 +682,9 @@ string decode_string(const string&t)
     else if(i+1<t.size() && t[i]=='\\' && t[i+1]=='t')
     { ++i; s+='\t';
     }  
+    else if(i+1<t.size() && t[i]=='\\' && t[i+1]=='\\')
+    { ++i; s+='\\';
+    }  
     else if(i+3<t.size() && t[i]=='\\' && t[i+1]=='x' && isxdigit(t[i+2]) && isxdigit(t[i+3]))
     {
       s+=char(todigit(t[i+2])*16+todigit(t[i+3]));
@@ -1834,12 +1837,12 @@ void replace_refs(List<Grule> rules)
 string literal_to_re(const string &s)
 { string t=decode_string(s.substr(1,s.size()-2));
   string r="";
-  static string meta="\\\'\"<>{}()*+.?[]/|$^ ";
+  static string meta="\\\'\"{}()*+.?[]/|$^ ";
   for(auto c:t)
   { if(c=='\n') r+="\\n";
     else if(c=='\t') r+="\\t";
     else if(meta.find(c)!=string::npos) { r+='\\'; r+=c; }
-    else if((c&0xFF)>=0x7F) { 
+    else if((c&0xFF)>=0x7F || c=='<' || c=='>') { 
       r+="\\x"s; 
       ostringstream v;
       v<<hex<<(c&0xFF);
