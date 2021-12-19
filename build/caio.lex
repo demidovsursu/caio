@@ -81,125 +81,125 @@ string_const	\"([^\\\"\n]|\\.)*\"
 ^"%using"	{ return 1005; }
 ^"%operator"	{ return 1002; }
 ^{ident}	{
-	#line 119 "caio.caio"
+	#line 119 "src/caio.caio"
                             yylval.f1_=yytext; BEGIN(S_RE2); return (1016); 	}
 \d+	{ yylval.f1_=yytext;  return 1018; }
 <INITIAL,S_LEX2>"%{"|"{"	{
-	#line 121 "caio.caio"
+	#line 121 "src/caio.caio"
                                      yy_push_state(S_CODE);  return (1006); 	}
 <INITIAL,S_GRM>{symbol}	{ yylval.f1_=yytext;  return 1016; }
 <INITIAL,S_LEX2,S_GRM,S_TOKEN>{cliteral}|{sliteral}|{qliteral}	{
-	#line 123 "caio.caio"
+	#line 123 "src/caio.caio"
                                                                  
             yylval.f1_=yytext; if(YYSTATE==S_TOKEN) yy_pop_state(); return (1022); 	}
 [ \t]	;
 ^"%%".*\n	{
-	#line 126 "caio.caio"
+	#line 126 "src/caio.caio"
             if(yylex_flag) { BEGIN(S_LEX); caio_mode=M_LEX; return (1014); }
             if(yyparse_flag) { BEGIN(S_GRM); caio_mode=M_GRM; return (1013); }
             BEGIN(S_CODE); caio_mode=M_CODE; return (1012);
           	}
 "//".*\n	{ return '\n'; }
 <S_LEX2>"//".*\n	{
-	#line 131 "caio.caio"
+	#line 131 "src/caio.caio"
                    BEGIN(S_LEX); return ('\n'); 	}
 <INITIAL,S_LEX2,S_GRM,S_NODE,S_LIST,S_TERM>"/*"(.|\n)*?"*/"	;
 <S_RE2>[ \t]	;
 <S_RE2>\n	{ return '\n'; }
 <S_RE2>R\"	{
-	#line 136 "caio.caio"
+	#line 136 "src/caio.caio"
                   yylval.f1_=reinput(YY_SCANNER,0); BEGIN(INITIAL);  return (1019); 	}
 <S_RE2>.	{
-	#line 137 "caio.caio"
+	#line 137 "src/caio.caio"
            re_str=""; yyunput(yytext[0]); BEGIN(INITIAL); yy_push_state(S_RE); 	}
 <S_RE>\\.	{
-	#line 139 "caio.caio"
+	#line 139 "src/caio.caio"
             re_str+=yytext; 	}
 <S_RE>\"([^\"\\\n]|\\.)*\"	{
-	#line 140 "caio.caio"
+	#line 140 "src/caio.caio"
                                   re_str+=yytext; 	}
 <S_RE>\[([^\]\\\n]|\\.)*\]	{
-	#line 141 "caio.caio"
+	#line 141 "src/caio.caio"
                                   re_str+=yytext; 	}
 <S_RE>[ \t]	{
-	#line 142 "caio.caio"
+	#line 142 "src/caio.caio"
               yylval.f1_=re_str; yy_pop_state(); return (1019); 	}
 <S_RE>.	{
-	#line 143 "caio.caio"
+	#line 143 "src/caio.caio"
           re_str+=yytext; 	}
 <S_RE>\n	{
-	#line 144 "caio.caio"
+	#line 144 "src/caio.caio"
            yylval.f1_=re_str; yy_pop_state(); yyunput('\n'); return (1019); 	}
 <S_LEX>^"%%".*\n	{
-	#line 146 "caio.caio"
+	#line 146 "src/caio.caio"
                    if(yyparse_flag) { BEGIN(S_GRM); caio_mode=M_GRM; return (1013); }
                    BEGIN(S_CODE); caio_mode=M_CODE; return (1012);
             	}
 <S_LEX>^"<"/[^<]	{
-	#line 149 "caio.caio"
+	#line 149 "src/caio.caio"
                    BEGIN(S_STATE); return ('<'); 	}
 <S_LEX>^"%{"/[ \t\n]	{
-	#line 150 "caio.caio"
+	#line 150 "src/caio.caio"
                        yy_push_state(S_CODE);  return (1006); 	}
 <S_LEX2>"<"	{
-	#line 151 "caio.caio"
+	#line 151 "src/caio.caio"
               yy_push_state(S_TERM); return ('<'); 	}
 <S_LEX>R\"	{
-	#line 152 "caio.caio"
+	#line 152 "src/caio.caio"
                   yylval.f1_=reinput(YY_SCANNER,0); BEGIN(S_LEX2);
              return (1019); 
            	}
 <S_LEX>[ \t]	{
-	#line 155 "caio.caio"
+	#line 155 "src/caio.caio"
                BEGIN(S_LEX2); 	}
 <S_LEX>[ \t]*\n	{ return '\n'; }
 <S_LEX>.	{
-	#line 157 "caio.caio"
+	#line 157 "src/caio.caio"
            re_str=""; yyunput(yytext[0]); BEGIN(S_LEX2); yy_push_state(S_RE); 	}
 <S_LEX2>[ \t]	;
 <S_LEX2,S_STATE>\n	{
-	#line 159 "caio.caio"
+	#line 159 "src/caio.caio"
                      BEGIN(S_LEX); return ('\n'); 	}
 <S_STATE>{ident}	{ yylval.f1_=yytext;  return 1016; }
 <S_STATE>[ \t]	;
 <S_STATE>">"	{
-	#line 163 "caio.caio"
+	#line 163 "src/caio.caio"
                BEGIN(S_LEX); return ('>'); 	}
 <S_GRM,S_TERM>[ \t\r\n]	;
 <S_TERM>">"	{
-	#line 166 "caio.caio"
+	#line 166 "src/caio.caio"
               yy_pop_state(); return ('>'); 	}
 <S_TERM>"("	{
-	#line 167 "caio.caio"
+	#line 167 "src/caio.caio"
               yy_push_state(S_LIST); return ('('); 	}
 <S_TERM,S_CODE,S_LIST>{char_const}	{
-	#line 168 "caio.caio"
+	#line 168 "src/caio.caio"
                                      yylval.f1_=yytext; return (1015); 	}
 <S_TERM,S_CODE,S_LIST>{string_const}	{
-	#line 169 "caio.caio"
+	#line 169 "src/caio.caio"
                                        yylval.f1_=yytext; return (1015); 	}
 <S_TERM,S_CODE,S_LIST>R\"	{
-	#line 170 "caio.caio"
+	#line 170 "src/caio.caio"
                                  yylval.f1_=reinput(YY_SCANNER,1); return (1015); 	}
 <S_CODE>default	{ return 1007; }
 <S_CODE>":"	{ return ':'; }
 <S_CODE>match	{
-	#line 173 "caio.caio"
+	#line 173 "src/caio.caio"
                 yy_push_state(S_LIST); return (1008); 	}
 <S_CODE>visitor	{
-	#line 174 "caio.caio"
+	#line 174 "src/caio.caio"
                   yy_push_state(S_NODE); return (1011); 	}
 <S_CODE>return/[\ \t\n\r]*['\"?]	{
-	#line 175 "caio.caio"
+	#line 175 "src/caio.caio"
                                        if(caio_mode==M_LEX) yy_push_state(S_TOKEN); yylval.f1_=yytext; return (1016); 	}
 <S_CODE>token[\ \t\n\r]*/['\"?]	{
-	#line 176 "caio.caio"
+	#line 176 "src/caio.caio"
                                       yy_push_state(S_TOKEN); 	}
 <S_CODE>rule	{
-	#line 177 "caio.caio"
+	#line 177 "src/caio.caio"
                yy_push_state(S_NODE); return (1009); 	}
 <S_CODE>visit	{
-	#line 178 "caio.caio"
+	#line 178 "src/caio.caio"
                 yy_push_state(S_NODE); return (1010); 	}
 <S_TERM,S_CODE,S_LIST>{ident}	{ yylval.f1_=yytext;  return 1016; }
 <S_TERM,S_CODE,S_LIST>{number}	{ yylval.f1_=yytext;  return 1015; }
@@ -207,13 +207,13 @@ string_const	\"([^\\\"\n]|\\.)*\"
 <S_TERM,S_LIST,S_CODE>"$"[0-9]+|"$"\[({symbol}|{cliteral}|{sliteral}|{qliteral})\]|"$"{symbolid}	{ yylval.f1_=yytext;  return 1020; }
 <S_GRM,S_NODE,S_LIST>"//".*\n	;
 <S_GRM>^"%%".*\n	{
-	#line 185 "caio.caio"
+	#line 185 "src/caio.caio"
                    BEGIN(S_CODE); caio_mode=M_CODE; return (1012); 	}
 <S_GRM>"{"	{
-	#line 186 "caio.caio"
+	#line 186 "src/caio.caio"
              if(bnf_flag!=1) { yy_push_state(S_CODE); return (1006); }  return ('{'); 	}
 <S_GRM>"%{"	{
-	#line 187 "caio.caio"
+	#line 187 "src/caio.caio"
               yy_push_state(S_CODE); return (1006); 	}
 <S_GRM>!	{ return '|'; }
 <S_GRM>"."	{ return ';'; }
@@ -223,49 +223,49 @@ string_const	\"([^\\\"\n]|\\.)*\"
 <S_GRM>":)"	{ return '}'; }
 <S_GRM>"/"	{ return '|'; }
 <S_GRM>"<"	{
-	#line 195 "caio.caio"
+	#line 195 "src/caio.caio"
              yy_push_state(S_TERM); return ('<'); 	}
 <S_LIST>"{"	{
-	#line 197 "caio.caio"
+	#line 197 "src/caio.caio"
               BEGIN(S_CODE); return ('{'); 	}
 <S_LIST>")"	{
-	#line 198 "caio.caio"
+	#line 198 "src/caio.caio"
               yy_pop_state(); return (')'); 	}
 <S_LIST>"("	{
-	#line 199 "caio.caio"
+	#line 199 "src/caio.caio"
               yy_push_state(S_LIST); return ('('); 	}
 <S_LIST>[ \t\n]+	;
 <S_NODE>":"	{
-	#line 202 "caio.caio"
+	#line 202 "src/caio.caio"
               yy_pop_state(); return (':'); 	}
 <S_NODE>"{"	{
-	#line 203 "caio.caio"
+	#line 203 "src/caio.caio"
               BEGIN(S_CODE); return ('{'); 	}
 <S_NODE>{ident}	{ yylval.f1_=yytext;  return 1016; }
 <S_NODE>[ \t\n]	;
 <S_CODE>"{"	{
-	#line 207 "caio.caio"
+	#line 207 "src/caio.caio"
               yy_push_state(S_CODE); return ('{'); 	}
 <S_CODE>"}"	{
-	#line 208 "caio.caio"
+	#line 208 "src/caio.caio"
               if(state_.size()>0) yy_pop_state(); return ('}'); 	}
 <S_CODE>"%}"	{
-	#line 209 "caio.caio"
+	#line 209 "src/caio.caio"
                if(state_.size()>0 && yy_top_state()!=S_CODE) { yy_pop_state(); return ('}');} yyunput('}'); yylval.f1_="%"s; return (1017); 	}
 <S_CODE,S_TOKEN>[ \t\n]+	{ yylval.f1_=yytext;  return 1021; }
 <S_CODE>"/*".*?"*/"	{
-	#line 211 "caio.caio"
+	#line 211 "src/caio.caio"
                       yylval.f1_=" "; return (1021); 	}
 <S_CODE>"/*"(.|\n)*?"*/"	{
-	#line 212 "caio.caio"
+	#line 212 "src/caio.caio"
                            yylval.f1_="\n"; return (1021); 	}
 <S_CODE>"//".*\n	{
-	#line 213 "caio.caio"
+	#line 213 "src/caio.caio"
                    yylval.f1_="\n"; return (1021); 	}
 <S_LIST>","	{ return ','; }
 <S_CODE,S_LIST>.	{ yylval.f1_=yytext;  return 1017; }
 <S_TOKEN>.	{
-	#line 216 "caio.caio"
+	#line 216 "src/caio.caio"
              yy_pop_state(); yylval.f1_=yytext; return (1017); 	}
 <INITIAL,S_CODE,S_GRM,S_LEX,S_LEX2,S_LIST,S_NODE,S_RE,S_RE2,S_STATE,S_TERM,S_TOKEN>.|\n	return yyliteral(yytext);
 %%

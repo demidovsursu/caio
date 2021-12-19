@@ -123,7 +123,7 @@
 %type <f7_> xcode
 %type <f17_> xelem
 %type <f14_> xrule
-%destructor { if(yydebug_flag==2) ast::astprint(cout,$$); else YYINTERPRET($$,scanner); ast::destroy($$); } program
+%destructor { if(yydebug_flag==2) ast::astprint(std::cout,$$); else YYINTERPRET($$,scanner); ast::destroy($$); } program
 %destructor { ast::destroy($$); } <f17_>
 %destructor { ast::destroy($$); } <f2_>
 %destructor { ast::destroy($$); } <f26_>
@@ -151,197 +151,197 @@
 %destructor { ast::destroy($$); } <f12_>
 %%
 program	: g_2 g_8 g_11 g_12	{
-	#line 222 "caio.caio"
+	#line 222 "src/caio.caio"
                                       $$=ast::prog($1,$2,$3,$4,&@$);
  }
 	;
 decl	: "%type" '<' type1 '>' g_13	{
-	#line 224 "caio.caio"
+	#line 224 "src/caio.caio"
                                              $$=ast::decltypes($3,$5,&@$);
  ast::destroy($3); }
 	| "%option" g_17	{
-	#line 226 "caio.caio"
+	#line 226 "src/caio.caio"
                                                  for(auto o:$2) switch_option(o);  ast::destroy($2); }
 	| "%using" g_19	{
-	#line 227 "caio.caio"
+	#line 227 "src/caio.caio"
                                                  for(auto o:$2) add_using(o);  ast::destroy($2); }
 	| "%operator" g_23	{
-	#line 230 "caio.caio"
+	#line 230 "src/caio.caio"
                                              $$=ast::decloper($2,&@$);
  }
 	| "?id?" "?re?"	{
-	#line 231 "caio.caio"
+	#line 231 "src/caio.caio"
                                              $$=ast::declre($1,$2,&@$);
  ast::destroy($1); ast::destroy($2); }
 	| "%{" xcode '}'	{
-	#line 232 "caio.caio"
+	#line 232 "src/caio.caio"
                                              $$=ast::declcode(nullptr,$2,&@$);
  }
 	| "%code" "?id?" "%{" xcode '}'	{
-	#line 233 "caio.caio"
+	#line 233 "src/caio.caio"
                                              $$=ast::declcode($2,$4,&@$);
  }
 	;
 type1	: type2	{$$=$1;
  }
 	| type2 '?'	{
-	#line 236 "caio.caio"
+	#line 236 "src/caio.caio"
                                              $$=std::string($1+"?"s);
  ast::destroy($1); }
 	| type2 '<' type2 '>'	{
-	#line 237 "caio.caio"
+	#line 237 "src/caio.caio"
                                              $$=std::string($1+"<"s+$3+">"s);
  ast::destroy($1); ast::destroy($3); }
 	| type2 '*'	{
-	#line 238 "caio.caio"
+	#line 238 "src/caio.caio"
                                              $$=std::string($1+"*"s);
  ast::destroy($1); }
 	| type2 '<' type2 '>' '*'	{
-	#line 239 "caio.caio"
+	#line 239 "src/caio.caio"
                                              $$=std::string($1+"<"s+$3+">*"s);
  ast::destroy($1); ast::destroy($3); }
 	;
 type2	: "?id?"	{
-	#line 241 "caio.caio"
+	#line 241 "src/caio.caio"
                                              $$=std::string(($1=="string"s)?"std::string"s:$1);
  ast::destroy($1); }
 	| "?id?" ':' ':' "?id?"	{
-	#line 242 "caio.caio"
+	#line 242 "src/caio.caio"
                                              $$=std::string($1+"::"s+$4);
  ast::destroy($1); ast::destroy($4); }
 	;
 symbol	: "?terminal?"	{
-	#line 244 "caio.caio"
+	#line 244 "src/caio.caio"
                                              $$=ast::terminal($1,&@$);
  ast::destroy($1); }
 	| "?id?"	{
-	#line 245 "caio.caio"
+	#line 245 "src/caio.caio"
                                              $$=ast::ident($1,&@$);
  ast::destroy($1); }
 	| "?id?" '(' g_27 ')'	{
-	#line 247 "caio.caio"
+	#line 247 "src/caio.caio"
                                              $$=ast::node($1,$3,&@$);
  ast::destroy($1); }
 	;
 initcode	: "%{" xcode '}' '\n'	{
-	#line 249 "caio.caio"
+	#line 249 "src/caio.caio"
                                              $$=ast::lexinit($2,&@$);
  }
 	;
 lrule	: g_31 "?re?" lcode	{
-	#line 255 "caio.caio"
+	#line 255 "src/caio.caio"
                                              $$=ast::lexrule($1,$2,$3,&@$);
  ast::destroy($2); }
 	;
 term	: type2 '(' g_34 ')'	{
-	#line 258 "caio.caio"
+	#line 258 "src/caio.caio"
                                              $$=ast::tnode($1,$3,&@$);
  ast::destroy($1); }
 	| "?const?"	{
-	#line 259 "caio.caio"
+	#line 259 "src/caio.caio"
                                              $$=ast::snode($1,&@$);
  ast::destroy($1); }
 	| type2	{
-	#line 260 "caio.caio"
+	#line 260 "src/caio.caio"
                                              $$=ast::snode($1,&@$);
  ast::destroy($1); }
 	| "?ref?"	{
-	#line 261 "caio.caio"
+	#line 261 "src/caio.caio"
                                              $$=ast::snode($1,&@$);
  ast::destroy($1); }
 	;
 lcode	: g_35 g_36	{
-	#line 263 "caio.caio"
+	#line 263 "src/caio.caio"
                                              $$=ast::lterm($1,$2,&@$);
  }
 	| ';'	{
-	#line 264 "caio.caio"
+	#line 264 "src/caio.caio"
                                              $$=ast::lskip(&@$);
  }
 	| '|'	{
-	#line 265 "caio.caio"
+	#line 265 "src/caio.caio"
                                              $$=ast::lnext(&@$);
  }
 	| "%{" xcode '}'	{
-	#line 266 "caio.caio"
+	#line 266 "src/caio.caio"
                                              $$=ast::lcode($2,&@$);
  }
 	;
 alist	: lelem	{
-	#line 268 "caio.caio"
+	#line 268 "src/caio.caio"
                                                  string s; for(auto x:$1) s+=x; $$=s;  }
 	| alist lelem	{
-	#line 269 "caio.caio"
+	#line 269 "src/caio.caio"
                                                  string s; for(auto x:$2) s+=x; $$=$1+s;  }
 	;
 grule	: "?id?" g_37 erule	{
-	#line 272 "caio.caio"
+	#line 272 "src/caio.caio"
                                              $$=ast::grmrule($1,$3,&@$);
  ast::destroy($1); }
 	;
 erule	: xrule g_38	{
-	#line 274 "caio.caio"
+	#line 274 "src/caio.caio"
                                              $$=ast::cons($1,$2);
  }
 	;
 xrule	: g_41 rcode	{
-	#line 276 "caio.caio"
+	#line 276 "src/caio.caio"
                                              $$=ast::xrule($1,$2,&@$);
  }
 	;
 lblelem	: "?id?" ':' elem	{
-	#line 278 "caio.caio"
+	#line 278 "src/caio.caio"
                                                  $$=replace_altid($3,$1);  }
 	| elem	{$$=$1;
  }
 	;
 rcode	:	{
-	#line 281 "caio.caio"
+	#line 281 "src/caio.caio"
                                              $$=ast::gempty(&@$);
  }
 	| '<' term '>'	{
-	#line 282 "caio.caio"
+	#line 282 "src/caio.caio"
                                              $$=ast::gterm($2,&@$);
  }
 	| "%{" xcode '}'	{
-	#line 283 "caio.caio"
+	#line 283 "src/caio.caio"
                                              $$=ast::gcode($2,&@$);
  }
 	;
 elem	: "?terminal?"	{
-	#line 285 "caio.caio"
+	#line 285 "src/caio.caio"
                                              $$=ast::trmelem($1,"",&@$);
  ast::destroy($1); }
 	| "?id?"	{
-	#line 286 "caio.caio"
+	#line 286 "src/caio.caio"
                                              $$=ast::symelem($1,"",&@$);
  ast::destroy($1); }
 	| '(' erule ')'	{
-	#line 287 "caio.caio"
+	#line 287 "src/caio.caio"
                                              $$=ast::varelem($2,"",&@$);
  }
 	| '(' erule ')' '*'	{
-	#line 288 "caio.caio"
+	#line 288 "src/caio.caio"
                                              $$=ast::repelem0($2,"",&@$);
  }
 	| '{' erule '}'	{
-	#line 289 "caio.caio"
+	#line 289 "src/caio.caio"
                                              $$=ast::repelem0($2,"",&@$);
  }
 	| '(' erule ')' '+'	{
-	#line 290 "caio.caio"
+	#line 290 "src/caio.caio"
                                              $$=ast::repelem1($2,"",&@$);
  }
 	| '{' erule '}' '-'	{
-	#line 291 "caio.caio"
+	#line 291 "src/caio.caio"
                                              $$=ast::repelem1($2,"",&@$);
  }
 	| '(' erule ')' '?'	{
-	#line 292 "caio.caio"
+	#line 292 "src/caio.caio"
                                              $$=ast::optelem($2,"",&@$);
  }
 	| '[' erule ']'	{
-	#line 293 "caio.caio"
+	#line 293 "src/caio.caio"
                                              $$=ast::optelem($2,"",&@$);
  }
 	;
@@ -352,88 +352,92 @@ ncode	: g_46	{$$=$1;
  }
 	;
 xelem	: "?lexem?"	{
-	#line 301 "caio.caio"
+	#line 301 "src/caio.caio"
                                              $$=ast::lexem($1,&@$);
  ast::destroy($1); }
 	| "?const?"	{
-	#line 302 "caio.caio"
+	#line 302 "src/caio.caio"
                                              $$=ast::lexem($1,&@$);
  ast::destroy($1); }
 	| "?id?"	{
-	#line 303 "caio.caio"
+	#line 303 "src/caio.caio"
                                              $$=ast::lexem($1,&@$);
  ast::destroy($1); }
 	| ':'	{
-	#line 304 "caio.caio"
+	#line 304 "src/caio.caio"
                                              $$=ast::lexem(":"s,&@$);
  }
 	| "?ref?"	{
-	#line 305 "caio.caio"
+	#line 305 "src/caio.caio"
                                              $$=ast::lexem($1,&@$);
  ast::destroy($1); }
 	| "?spaces?"	{
-	#line 306 "caio.caio"
+	#line 306 "src/caio.caio"
                                              $$=ast::lexem($1,&@$);
  ast::destroy($1); }
 	| '{' xcode '}'	{
-	#line 307 "caio.caio"
+	#line 307 "src/caio.caio"
                                              $$=ast::pcode($2,&@$);
  }
 	| "match" list '{' g_48 g_53 '}'	{
-	#line 314 "caio.caio"
+	#line 314 "src/caio.caio"
                                              $$=ast::mcode($2,$5,&@$);
  }
 	| "visitor" "?id?" '<' "?id?" ',' "?id?" '>' '{' xcode g_54 '}'	{
-	#line 318 "caio.caio"
+	#line 318 "src/caio.caio"
                                              $$=ast::vcode($2,$4,$6,$9,$10,&@$);
  ast::destroy($2); ast::destroy($4); ast::destroy($6); }
 	| "?terminal?"	{
-	#line 319 "caio.caio"
+	#line 319 "src/caio.caio"
                                              $$=ast::token($1,&@$);
  ast::destroy($1); }
 	;
 mrule	: "rule" node ':' ncode	{
-	#line 321 "caio.caio"
+	#line 321 "src/caio.caio"
                                              $$=ast::mrule($2,$4,&@$);
  }
 	;
 vrule	: "visit" node ':' ncode	{
-	#line 323 "caio.caio"
+	#line 323 "src/caio.caio"
                                              $$=ast::vrule($2,$4,&@$);
  }
 	;
 list	: lelem g_57	{
-	#line 326 "caio.caio"
+	#line 326 "src/caio.caio"
                                              $$=ast::cons($1,$2);
  }
 	;
 lelem	: "?lexem?"	{
-	#line 328 "caio.caio"
+	#line 328 "src/caio.caio"
                                              $$=ast::cons($1);
  ast::destroy($1); }
 	| "?ref?"	{
-	#line 329 "caio.caio"
+	#line 329 "src/caio.caio"
                                              $$=ast::cons($1);
  ast::destroy($1); }
 	| "?id?"	{
-	#line 330 "caio.caio"
+	#line 330 "src/caio.caio"
                                              $$=ast::cons($1);
  ast::destroy($1); }
 	| "?const?"	{
-	#line 331 "caio.caio"
+	#line 331 "src/caio.caio"
                                              $$=ast::cons($1);
  ast::destroy($1); }
+	| '(' ')'	{
+	#line 332 "src/caio.caio"
+                                             $$=ast::cons(cons("("s),")"s);
+ }
 	| '(' list ')'	{
-	#line 332 "caio.caio"
+	#line 333 "src/caio.caio"
                                              $$=ast::cons(cons("("s,$2),")"s);
  }
 	;
 node	: "?id?" '(' g_61 ')'	{
-	#line 335 "caio.caio"
+	#line 336 "src/caio.caio"
                                              $$=ast::node2($1,$3,&@$);
  ast::destroy($1); }
 	| "?id?"	{
-	#line 336 "caio.caio"
+	#line 337 "src/caio.caio"
                                              $$=ast::node1($1,&@$);
  ast::destroy($1); }
 	;
@@ -465,7 +469,7 @@ g_6	:
 	;
 g_8	:
 	| "?%%lex?" g_4 g_6	{
-	#line 220 "caio.caio"
+	#line 220 "src/caio.caio"
                                                 $$=ast::cons($2,$3);
  }
 	;
@@ -497,7 +501,7 @@ g_15	: "?number?"	{$$=$1;
  }
 	;
 g_16	: "?id?" '(' g_15 ')'	{
-	#line 225 "caio.caio"
+	#line 225 "src/caio.caio"
                                                     $$=std::string($1+"="s+$3);
  ast::destroy($1); ast::destroy($3); }
 	| "?id?"	{$$=$1;
@@ -528,7 +532,7 @@ g_21	: g_22	{$$=ast::cons($1);
  ast::destroy($2); }
 	;
 g_24	: '<' "?id?" '>' g_21	{
-	#line 229 "caio.caio"
+	#line 229 "src/caio.caio"
                                              $$=ast::cons($2,$4);
  ast::destroy($2); }
 	;
@@ -546,7 +550,7 @@ g_25	:
 	;
 g_27	:
 	| type1 g_25	{
-	#line 246 "caio.caio"
+	#line 246 "src/caio.caio"
                                              $$=ast::cons($1,$2);
  ast::destroy($1); }
 	;
@@ -558,11 +562,11 @@ g_28	:
  ast::destroy($2); }
 	;
 g_30	: '*'	{
-	#line 251 "caio.caio"
+	#line 251 "src/caio.caio"
                                              $$=ast::cons("*"s);
  }
 	| "?id?" g_28	{
-	#line 252 "caio.caio"
+	#line 252 "src/caio.caio"
                                              $$=ast::cons($1,$2);
  ast::destroy($1); }
 	;
@@ -579,7 +583,7 @@ g_32	:
 	;
 g_34	:
 	| alist g_32	{
-	#line 257 "caio.caio"
+	#line 257 "src/caio.caio"
                                              $$=ast::cons($1,$2);
  ast::destroy($1); }
 	;
@@ -614,7 +618,7 @@ g_41	:
 g_43	: xelem	{$$=$1;
  }
 	| "default"	{
-	#line 296 "caio.caio"
+	#line 296 "src/caio.caio"
                                              $$=ast::lexem("default"s,&@$);
  }
 	;
@@ -647,12 +651,12 @@ g_50	: g_51	{$$=ast::cons($1);
 	;
 g_52	:
 	| "default" ':' ncode	{
-	#line 311 "caio.caio"
+	#line 311 "src/caio.caio"
                                              $$=ast::mrule(nullptr,$3,&@$);
  }
 	;
 g_53	: g_50 g_52	{
-	#line 312 "caio.caio"
+	#line 312 "src/caio.caio"
                                              $$=ast::cons($1,$2);
  }
 	;
@@ -667,7 +671,7 @@ g_54	: g_55	{$$=ast::cons($1);
 g_56	: lelem	{$$=$1;
  }
 	| ','	{
-	#line 325 "caio.caio"
+	#line 325 "src/caio.caio"
                                              $$=ast::cons(","s);
  }
 	;
@@ -687,7 +691,7 @@ g_59	:
 	;
 g_61	:
 	| "?id?" g_59	{
-	#line 334 "caio.caio"
+	#line 335 "src/caio.caio"
                                              $$=ast::cons($1,$2);
  ast::destroy($1); }
 	;
