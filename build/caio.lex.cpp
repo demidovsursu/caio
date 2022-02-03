@@ -323,7 +323,7 @@ int yyFlexLexer::yylex(YYSTYPE& yylval)
           case 6: // rule build/caio.lex:83: ^{ident} :
             YY_USER_ACTION
 {
-	#line 119 "src/caio.caio"
+	#line 119 "caio.caio"
                             yylval.f1_=yytext; BEGIN(S_RE2); return (1016); 	}
             YY_BREAK
           case 7: // rule build/caio.lex:86: \d+ :
@@ -333,7 +333,7 @@ int yyFlexLexer::yylex(YYSTYPE& yylval)
           case 8: // rule build/caio.lex:87: "%{"|"{" :
             YY_USER_ACTION
 {
-	#line 121 "src/caio.caio"
+	#line 121 "caio.caio"
                                      yy_push_state(S_CODE);  return (1006); 	}
             YY_BREAK
           case 9: // rule build/caio.lex:90: {symbol} :
@@ -343,7 +343,7 @@ int yyFlexLexer::yylex(YYSTYPE& yylval)
           case 10: // rule build/caio.lex:91: {cliteral}|{sliteral}|{qliteral} :
             YY_USER_ACTION
 {
-	#line 123 "src/caio.caio"
+	#line 123 "caio.caio"
 
             yylval.f1_=yytext; if(YYSTATE==S_TOKEN) yy_pop_state(); return (1022); 	}
             YY_BREAK
@@ -354,7 +354,7 @@ int yyFlexLexer::yylex(YYSTYPE& yylval)
           case 12: // rule build/caio.lex:96: ^"%%".*\n :
             YY_USER_ACTION
 {
-	#line 126 "src/caio.caio"
+	#line 126 "caio.caio"
             if(yylex_flag) { BEGIN(S_LEX); caio_mode=M_LEX; return (1014); }
             if(yyparse_flag) { BEGIN(S_GRM); caio_mode=M_GRM; return (1013); }
             BEGIN(S_CODE); caio_mode=M_CODE; return (1012);
@@ -391,19 +391,19 @@ return yyliteral(yytext);
           case 1: // rule build/caio.lex:175: {char_const} :
             YY_USER_ACTION
 {
-	#line 168 "src/caio.caio"
+	#line 168 "caio.caio"
                                      yylval.f1_=yytext; return (1015); 	}
             YY_BREAK
           case 2: // rule build/caio.lex:178: {string_const} :
             YY_USER_ACTION
 {
-	#line 169 "src/caio.caio"
+	#line 169 "caio.caio"
                                        yylval.f1_=yytext; return (1015); 	}
             YY_BREAK
           case 3: // rule build/caio.lex:181: R\" :
             YY_USER_ACTION
 {
-	#line 170 "src/caio.caio"
+	#line 170 "caio.caio"
                                  yylval.f1_=reinput(YY_SCANNER,1); return (1015); 	}
             YY_BREAK
           case 4: // rule build/caio.lex:184: default :
@@ -417,37 +417,37 @@ return yyliteral(yytext);
           case 6: // rule build/caio.lex:186: match :
             YY_USER_ACTION
 {
-	#line 173 "src/caio.caio"
+	#line 173 "caio.caio"
                 yy_push_state(S_LIST); return (1008); 	}
             YY_BREAK
           case 7: // rule build/caio.lex:189: visitor :
             YY_USER_ACTION
 {
-	#line 174 "src/caio.caio"
+	#line 174 "caio.caio"
                   yy_push_state(S_NODE); return (1011); 	}
             YY_BREAK
           case 8: // rule build/caio.lex:192: return/[\ \t\n\r]*['\"?] :
             YY_USER_ACTION
 {
-	#line 175 "src/caio.caio"
+	#line 175 "caio.caio"
                                        if(caio_mode==M_LEX) yy_push_state(S_TOKEN); yylval.f1_=yytext; return (1016); 	}
             YY_BREAK
           case 9: // rule build/caio.lex:195: token[\ \t\n\r]*/['\"?] :
             YY_USER_ACTION
 {
-	#line 176 "src/caio.caio"
+	#line 176 "caio.caio"
                                       yy_push_state(S_TOKEN); 	}
             YY_BREAK
           case 10: // rule build/caio.lex:198: rule :
             YY_USER_ACTION
 {
-	#line 177 "src/caio.caio"
+	#line 177 "caio.caio"
                yy_push_state(S_NODE); return (1009); 	}
             YY_BREAK
           case 11: // rule build/caio.lex:201: visit :
             YY_USER_ACTION
 {
-	#line 178 "src/caio.caio"
+	#line 178 "caio.caio"
                 yy_push_state(S_NODE); return (1010); 	}
             YY_BREAK
           case 12: // rule build/caio.lex:204: {ident} :
@@ -469,19 +469,19 @@ return yyliteral(yytext);
           case 16: // rule build/caio.lex:246: "{" :
             YY_USER_ACTION
 {
-	#line 207 "src/caio.caio"
+	#line 207 "caio.caio"
               yy_push_state(S_CODE); return ('{'); 	}
             YY_BREAK
           case 17: // rule build/caio.lex:249: "}" :
             YY_USER_ACTION
 {
-	#line 208 "src/caio.caio"
+	#line 208 "caio.caio"
               if(state_.size()>0) yy_pop_state(); return ('}'); 	}
             YY_BREAK
           case 18: // rule build/caio.lex:252: "%}" :
             YY_USER_ACTION
 {
-	#line 209 "src/caio.caio"
+	#line 209 "caio.caio"
                if(state_.size()>0 && yy_top_state()!=S_CODE) { yy_pop_state(); return ('}');} yyunput('}'); yylval.f1_="%"s; return (1017); 	}
             YY_BREAK
           case 19: // rule build/caio.lex:255: [ \t\n]+ :
@@ -491,19 +491,19 @@ return yyliteral(yytext);
           case 20: // rule build/caio.lex:256: "/*".*?"*/" :
             YY_USER_ACTION
 {
-	#line 211 "src/caio.caio"
+	#line 211 "caio.caio"
                       yylval.f1_=" "; return (1021); 	}
             YY_BREAK
           case 21: // rule build/caio.lex:259: "/*"(.|\n)*?"*/" :
             YY_USER_ACTION
 {
-	#line 212 "src/caio.caio"
+	#line 212 "caio.caio"
                            yylval.f1_="\n"; return (1021); 	}
             YY_BREAK
           case 22: // rule build/caio.lex:262: "//".*\n :
             YY_USER_ACTION
 {
-	#line 213 "src/caio.caio"
+	#line 213 "caio.caio"
                    yylval.f1_="\n"; return (1021); 	}
             YY_BREAK
           case 23: // rule build/caio.lex:266: . :
@@ -537,7 +537,7 @@ return yyliteral(yytext);
           case 2: // rule build/caio.lex:91: {cliteral}|{sliteral}|{qliteral} :
             YY_USER_ACTION
 {
-	#line 123 "src/caio.caio"
+	#line 123 "caio.caio"
 
             yylval.f1_=yytext; if(YYSTATE==S_TOKEN) yy_pop_state(); return (1022); 	}
             YY_BREAK
@@ -556,19 +556,19 @@ return yyliteral(yytext);
           case 6: // rule build/caio.lex:209: ^"%%".*\n :
             YY_USER_ACTION
 {
-	#line 185 "src/caio.caio"
+	#line 185 "caio.caio"
                    BEGIN(S_CODE); caio_mode=M_CODE; return (1012); 	}
             YY_BREAK
           case 7: // rule build/caio.lex:212: "{" :
             YY_USER_ACTION
 {
-	#line 186 "src/caio.caio"
+	#line 186 "caio.caio"
              if(bnf_flag!=1) { yy_push_state(S_CODE); return (1006); }  return ('{'); 	}
             YY_BREAK
           case 8: // rule build/caio.lex:215: "%{" :
             YY_USER_ACTION
 {
-	#line 187 "src/caio.caio"
+	#line 187 "caio.caio"
               yy_push_state(S_CODE); return (1006); 	}
             YY_BREAK
           case 9: // rule build/caio.lex:218: ! :
@@ -602,7 +602,7 @@ return yyliteral(yytext);
           case 16: // rule build/caio.lex:225: "<" :
             YY_USER_ACTION
 {
-	#line 195 "src/caio.caio"
+	#line 195 "caio.caio"
              yy_push_state(S_TERM); return ('<'); 	}
             YY_BREAK
           case 17: // rule build/caio.lex:270: .|\n :
@@ -628,7 +628,7 @@ return yyliteral(yytext);
           case 1: // rule build/caio.lex:133: ^"%%".*\n :
             YY_USER_ACTION
 {
-	#line 146 "src/caio.caio"
+	#line 146 "caio.caio"
                    if(yyparse_flag) { BEGIN(S_GRM); caio_mode=M_GRM; return (1013); }
                    BEGIN(S_CODE); caio_mode=M_CODE; return (1012);
             	}
@@ -636,19 +636,19 @@ return yyliteral(yytext);
           case 2: // rule build/caio.lex:138: ^"<"/[^<] :
             YY_USER_ACTION
 {
-	#line 149 "src/caio.caio"
+	#line 149 "caio.caio"
                    BEGIN(S_STATE); return ('<'); 	}
             YY_BREAK
           case 3: // rule build/caio.lex:141: ^"%{"/[ \t\n] :
             YY_USER_ACTION
 {
-	#line 150 "src/caio.caio"
+	#line 150 "caio.caio"
                        yy_push_state(S_CODE);  return (1006); 	}
             YY_BREAK
           case 4: // rule build/caio.lex:147: R\" :
             YY_USER_ACTION
 {
-	#line 152 "src/caio.caio"
+	#line 152 "caio.caio"
                   yylval.f1_=reinput(YY_SCANNER,0); BEGIN(S_LEX2);
              return (1019);
            	}
@@ -656,7 +656,7 @@ return yyliteral(yytext);
           case 5: // rule build/caio.lex:152: [ \t] :
             YY_USER_ACTION
 {
-	#line 155 "src/caio.caio"
+	#line 155 "caio.caio"
                BEGIN(S_LEX2); 	}
             YY_BREAK
           case 6: // rule build/caio.lex:155: [ \t]*\n :
@@ -666,7 +666,7 @@ return yyliteral(yytext);
           case 7: // rule build/caio.lex:156: . :
             YY_USER_ACTION
 {
-	#line 157 "src/caio.caio"
+	#line 157 "caio.caio"
            re_str=""; yyunput(yytext[0]); BEGIN(S_LEX2); yy_push_state(S_RE); 	}
             YY_BREAK
           case 8: // rule build/caio.lex:270: .|\n :
@@ -692,20 +692,20 @@ return yyliteral(yytext);
           case 1: // rule build/caio.lex:87: "%{"|"{" :
             YY_USER_ACTION
 {
-	#line 121 "src/caio.caio"
+	#line 121 "caio.caio"
                                      yy_push_state(S_CODE);  return (1006); 	}
             YY_BREAK
           case 2: // rule build/caio.lex:91: {cliteral}|{sliteral}|{qliteral} :
             YY_USER_ACTION
 {
-	#line 123 "src/caio.caio"
+	#line 123 "caio.caio"
 
             yylval.f1_=yytext; if(YYSTATE==S_TOKEN) yy_pop_state(); return (1022); 	}
             YY_BREAK
           case 3: // rule build/caio.lex:103: "//".*\n :
             YY_USER_ACTION
 {
-	#line 131 "src/caio.caio"
+	#line 131 "caio.caio"
                    BEGIN(S_LEX); return ('\n'); 	}
             YY_BREAK
           case 4: // rule build/caio.lex:106: "/*"(.|\n)*?"*/" :
@@ -715,7 +715,7 @@ return yyliteral(yytext);
           case 5: // rule build/caio.lex:144: "<" :
             YY_USER_ACTION
 {
-	#line 151 "src/caio.caio"
+	#line 151 "caio.caio"
               yy_push_state(S_TERM); return ('<'); 	}
             YY_BREAK
           case 6: // rule build/caio.lex:159: [ \t] :
@@ -725,7 +725,7 @@ return yyliteral(yytext);
           case 7: // rule build/caio.lex:160: \n :
             YY_USER_ACTION
 {
-	#line 159 "src/caio.caio"
+	#line 159 "caio.caio"
                      BEGIN(S_LEX); return ('\n'); 	}
             YY_BREAK
           case 8: // rule build/caio.lex:270: .|\n :
@@ -755,19 +755,19 @@ return yyliteral(yytext);
           case 2: // rule build/caio.lex:175: {char_const} :
             YY_USER_ACTION
 {
-	#line 168 "src/caio.caio"
+	#line 168 "caio.caio"
                                      yylval.f1_=yytext; return (1015); 	}
             YY_BREAK
           case 3: // rule build/caio.lex:178: {string_const} :
             YY_USER_ACTION
 {
-	#line 169 "src/caio.caio"
+	#line 169 "caio.caio"
                                        yylval.f1_=yytext; return (1015); 	}
             YY_BREAK
           case 4: // rule build/caio.lex:181: R\" :
             YY_USER_ACTION
 {
-	#line 170 "src/caio.caio"
+	#line 170 "caio.caio"
                                  yylval.f1_=reinput(YY_SCANNER,1); return (1015); 	}
             YY_BREAK
           case 5: // rule build/caio.lex:204: {ident} :
@@ -793,19 +793,19 @@ return yyliteral(yytext);
           case 10: // rule build/caio.lex:228: "{" :
             YY_USER_ACTION
 {
-	#line 197 "src/caio.caio"
+	#line 197 "caio.caio"
               BEGIN(S_CODE); return ('{'); 	}
             YY_BREAK
           case 11: // rule build/caio.lex:231: ")" :
             YY_USER_ACTION
 {
-	#line 198 "src/caio.caio"
+	#line 198 "caio.caio"
               yy_pop_state(); return (')'); 	}
             YY_BREAK
           case 12: // rule build/caio.lex:234: "(" :
             YY_USER_ACTION
 {
-	#line 199 "src/caio.caio"
+	#line 199 "caio.caio"
               yy_push_state(S_LIST); return ('('); 	}
             YY_BREAK
           case 13: // rule build/caio.lex:237: [ \t\n]+ :
@@ -851,13 +851,13 @@ return yyliteral(yytext);
           case 3: // rule build/caio.lex:238: ":" :
             YY_USER_ACTION
 {
-	#line 202 "src/caio.caio"
+	#line 202 "caio.caio"
               yy_pop_state(); return (':'); 	}
             YY_BREAK
           case 4: // rule build/caio.lex:241: "{" :
             YY_USER_ACTION
 {
-	#line 203 "src/caio.caio"
+	#line 203 "caio.caio"
               BEGIN(S_CODE); return ('{'); 	}
             YY_BREAK
           case 5: // rule build/caio.lex:244: {ident} :
@@ -891,37 +891,37 @@ return yyliteral(yytext);
           case 1: // rule build/caio.lex:115: \\. :
             YY_USER_ACTION
 {
-	#line 139 "src/caio.caio"
+	#line 139 "caio.caio"
             re_str+=yytext; 	}
             YY_BREAK
           case 2: // rule build/caio.lex:118: \"([^\"\\\n]|\\.)*\" :
             YY_USER_ACTION
 {
-	#line 140 "src/caio.caio"
+	#line 140 "caio.caio"
                                   re_str+=yytext; 	}
             YY_BREAK
           case 3: // rule build/caio.lex:121: \[([^\]\\\n]|\\.)*\] :
             YY_USER_ACTION
 {
-	#line 141 "src/caio.caio"
+	#line 141 "caio.caio"
                                   re_str+=yytext; 	}
             YY_BREAK
           case 4: // rule build/caio.lex:124: [ \t] :
             YY_USER_ACTION
 {
-	#line 142 "src/caio.caio"
+	#line 142 "caio.caio"
               yylval.f1_=re_str; yy_pop_state(); return (1019); 	}
             YY_BREAK
           case 5: // rule build/caio.lex:127: . :
             YY_USER_ACTION
 {
-	#line 143 "src/caio.caio"
+	#line 143 "caio.caio"
           re_str+=yytext; 	}
             YY_BREAK
           case 6: // rule build/caio.lex:130: \n :
             YY_USER_ACTION
 {
-	#line 144 "src/caio.caio"
+	#line 144 "caio.caio"
            yylval.f1_=re_str; yy_pop_state(); yyunput('\n'); return (1019); 	}
             YY_BREAK
           case 7: // rule build/caio.lex:270: .|\n :
@@ -955,13 +955,13 @@ return yyliteral(yytext);
           case 3: // rule build/caio.lex:109: R\" :
             YY_USER_ACTION
 {
-	#line 136 "src/caio.caio"
+	#line 136 "caio.caio"
                   yylval.f1_=reinput(YY_SCANNER,0); BEGIN(INITIAL);  return (1019); 	}
             YY_BREAK
           case 4: // rule build/caio.lex:112: . :
             YY_USER_ACTION
 {
-	#line 137 "src/caio.caio"
+	#line 137 "caio.caio"
            re_str=""; yyunput(yytext[0]); BEGIN(INITIAL); yy_push_state(S_RE); 	}
             YY_BREAK
           case 5: // rule build/caio.lex:270: .|\n :
@@ -987,7 +987,7 @@ return yyliteral(yytext);
           case 1: // rule build/caio.lex:160: \n :
             YY_USER_ACTION
 {
-	#line 159 "src/caio.caio"
+	#line 159 "caio.caio"
                      BEGIN(S_LEX); return ('\n'); 	}
             YY_BREAK
           case 2: // rule build/caio.lex:163: {ident} :
@@ -1001,7 +1001,7 @@ return yyliteral(yytext);
           case 4: // rule build/caio.lex:165: ">" :
             YY_USER_ACTION
 {
-	#line 163 "src/caio.caio"
+	#line 163 "caio.caio"
                BEGIN(S_LEX); return ('>'); 	}
             YY_BREAK
           case 5: // rule build/caio.lex:270: .|\n :
@@ -1035,31 +1035,31 @@ return yyliteral(yytext);
           case 3: // rule build/caio.lex:169: ">" :
             YY_USER_ACTION
 {
-	#line 166 "src/caio.caio"
+	#line 166 "caio.caio"
               yy_pop_state(); return ('>'); 	}
             YY_BREAK
           case 4: // rule build/caio.lex:172: "(" :
             YY_USER_ACTION
 {
-	#line 167 "src/caio.caio"
+	#line 167 "caio.caio"
               yy_push_state(S_LIST); return ('('); 	}
             YY_BREAK
           case 5: // rule build/caio.lex:175: {char_const} :
             YY_USER_ACTION
 {
-	#line 168 "src/caio.caio"
+	#line 168 "caio.caio"
                                      yylval.f1_=yytext; return (1015); 	}
             YY_BREAK
           case 6: // rule build/caio.lex:178: {string_const} :
             YY_USER_ACTION
 {
-	#line 169 "src/caio.caio"
+	#line 169 "caio.caio"
                                        yylval.f1_=yytext; return (1015); 	}
             YY_BREAK
           case 7: // rule build/caio.lex:181: R\" :
             YY_USER_ACTION
 {
-	#line 170 "src/caio.caio"
+	#line 170 "caio.caio"
                                  yylval.f1_=reinput(YY_SCANNER,1); return (1015); 	}
             YY_BREAK
           case 8: // rule build/caio.lex:204: {ident} :
@@ -1097,7 +1097,7 @@ return yyliteral(yytext);
           case 1: // rule build/caio.lex:91: {cliteral}|{sliteral}|{qliteral} :
             YY_USER_ACTION
 {
-	#line 123 "src/caio.caio"
+	#line 123 "caio.caio"
 
             yylval.f1_=yytext; if(YYSTATE==S_TOKEN) yy_pop_state(); return (1022); 	}
             YY_BREAK
@@ -1108,7 +1108,7 @@ return yyliteral(yytext);
           case 3: // rule build/caio.lex:267: . :
             YY_USER_ACTION
 {
-	#line 216 "src/caio.caio"
+	#line 216 "caio.caio"
              yy_pop_state(); yylval.f1_=yytext; return (1017); 	}
             YY_BREAK
           case 4: // rule build/caio.lex:270: .|\n :

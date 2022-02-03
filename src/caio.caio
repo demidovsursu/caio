@@ -436,6 +436,7 @@ Gelem varelem(List<Xrule> xl)
 { return varelem(xl,"");
 }
 }
+void add_symbol(const string&id, const string&tip);
 void set_input(const char* name)
 {
   bnf_flag=1;
@@ -474,12 +475,14 @@ void set_input(const char* name)
   caio_mode=M_DECL;
 
   symbols.clear();
+  add_symbol("error","");
   consts.clear();
   domains.clear();
   nodes.clear();
   opers.clear();
   lexdefs.clear();
   defined_symbols.clear();
+  defined_symbols.insert("error"s);
   symbol_names.clear();
   lex_states.clear();
   union_fields.clear();
@@ -1213,7 +1216,7 @@ bool is_empty_rule(List<Xrule> rules)
   }
   return true;
 }
-void setup_default(List<Xrule> rules, bool need)
+void setup_default(List<Xrule> rules, bool need, const string& idr)
 { 
   for(auto r:rules)
   { set<int> refs;
@@ -1271,7 +1274,7 @@ void setup_default(List<Xrule> rules, bool need)
             refs.insert(u[1]);
           }
           else if(u.size()>1)
-            std::cerr<<"Warning: ambiguity rule to select value by default, write direct action\n";
+            std::cerr<<"Warning: ambiguity rule for "<<idr<<" to select value by default, write direct action\n";
         }
       rule gterm(t):
         collect_refs(t,refs);
@@ -1294,18 +1297,18 @@ void setup_default(List<Xrule> rules, bool need)
               symbols[id].used=true;
               match symbols[id].defrule {
               rule grmrule(id2, body2):
-                setup_default(body2, true);
+                setup_default(body2, true,id2);
               }
             }
           }
         rule varelem(xl,altid):
-          setup_default(xl,flg);
+          setup_default(xl,flg,idr);
         rule optelem(xl,altid):
-          setup_default(xl,flg);
+          setup_default(xl,flg,idr);
         rule repelem1(xl,altid):
-          setup_default(xl,flg);
+          setup_default(xl,flg,idr);
         rule repelem0(xl,altid):
-          setup_default(xl,flg);
+          setup_default(xl,flg,idr);
         }
       }
     }
@@ -1317,7 +1320,7 @@ void setup_default(List<Grule> rules)
     rule grmrule(id, body):
       if(!empty_type(symbols[id].tip))
         symbols[id].used=true;
-      setup_default(body, symbols[id].used);
+      setup_default(body, symbols[id].used,id);
     }
   } 
 }
@@ -3065,6 +3068,7 @@ if(yyinterpret_flag && root_tip!="") {
 }
 else
   fout<<"#define YYINTERPRET(ast,scanner)\n";
+fout<<"#define YYONERROR exit(1)\n";
 gen_mode=0;
 gen_code_line(fout,hcode,0,0);
 
@@ -3201,7 +3205,7 @@ void create_cppfile(ostream& fout,const string &fn, List<Code> code)
       fout<<"void yyerror(void *, const char* msg)\n{ yyerror(msg); }\n";
     fout<<"void yyerror(const std::string& msg)\n"
           "{ std::cerr<<msg<<std::endl;\n"
-          "  exit(1);\n"
+          "  YYONERROR;\n"
           "}\n";
   }
   if(main_flag)
@@ -3312,7 +3316,7 @@ void create_cppfile(ostream& fout,const string &fn, List<Code> code)
   }
 }
 string linked_symbol;
-string type_arg(const string &a, List<Gelem> gl, const string &nd, int nn)
+string type_arg(const string &a, List<Gelem> gl, const string &nd, int nn, bool flg=true)
 { string s;
   int i=0;
   linked_symbol.clear();
@@ -3335,7 +3339,12 @@ string type_arg(const string &a, List<Gelem> gl, const string &nd, int nn)
          return symbols[idn].tip;
     rule symelem(s,altid):
          auto &sym=symbols[s];
-         if(nn>0)
+         if(!flg)
+         {
+           sym.node_link.push_back(make_pair(nd,-nn));
+           return sym.tip;
+         }
+         else if(nn>0) 
            sym.node_link.push_back(make_pair(nd,nn));
          else if(s!=nd)
          {
@@ -3368,8 +3377,8 @@ string type_arg(const string &a, List<Gelem> gl, const string &nd, int nn)
   if(i<a.size() && a[i]=='(')
   {
     if(s=="cons"s)
-    {
-      s=type_arg(a.substr(i+1),gl,nd,nn);
+    { 
+      s=type_arg(a.substr(i+1),gl,nd,nn,0);
       if(s!=""s && !is_list_type(s))
         return "List<"s+s+">"s;
       return s;
@@ -3636,9 +3645,15 @@ void calc_types(List<Grule> grules)
       if(yydebug_flag==3)
         cout<<"@ "<<s<<" "<<tip<<"\n";
       for(auto &x:sym.node_link)
-      { 
-        assign_type(nodes[x.first].types[x.second],tip,x.first+"("s+to_string(x.second)+")"s);
-        if(x.second==0)
+      { string t=tip;
+        int a=x.second;
+        if(a<0) {
+          a=-a;
+          if(!is_list_type(t))
+            t=list_of_type(t);
+        }
+        assign_type(nodes[x.first].types[a],t,x.first+"("s+to_string(a)+")"s);
+        if(a==0)
         {
           domains[tip].nodes.insert(x.first);
           for(auto &sn:nodes[x.first].symbol_link)
@@ -3653,10 +3668,8 @@ void calc_types(List<Grule> grules)
         if(x.second==0)
           assign_type(symbols[x.first].tip,tip,x.first);
         else if(x.second==-1)
-        { if(is_list_type(tip))
-            assign_type(symbols[x.first].tip,tip,x.first);
-          else    
-            assign_type(symbols[x.first].tip,list_of_type(tip),x.first);
+        { 
+          assign_type(symbols[x.first].tip,is_list_type(tip)?tip:list_of_type(tip),x.first);
         }
         else if(x.second==-2)
         { if(!is_list_type(tip))

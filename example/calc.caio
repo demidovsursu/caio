@@ -1,7 +1,8 @@
 %{
 #include <stdio.h>
+#define YYONERROR
 %}
-%option bnf interactive default-skip
+%option bnf interactive default-skip yylineno
 %operator <yfx> '+' '-'
 %operator <yfx> '*' '/'
 %operator <fy> '-'
@@ -10,6 +11,7 @@
 %%
 program: 
   | program expr '\n' { printf("%d\n",$2); }
+  | error '\n'
   ;
 expr: 
     expr '+' expr { $$ = $1+$3; }

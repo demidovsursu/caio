@@ -2257,54 +2257,54 @@ yyreduce:
     {
   case 2: /* program: g_2 g_8 g_11 g_12  */
                                 {
-	#line 222 "src/caio.caio"
+	#line 222 "caio.caio"
                                       (yyval.f25_)=ast::prog((yyvsp[-3].f11_),(yyvsp[-2].f22_),(yyvsp[-1].f6_),(yyvsp[0].f7_),&(yyloc));
  }
     break;
 
   case 3: /* decl: "%type" '<' type1 '>' g_13  */
                                         {
-	#line 224 "src/caio.caio"
+	#line 224 "caio.caio"
                                              (yyval.f2_)=ast::decltypes((yyvsp[-2].f1_),(yyvsp[0].f8_),&(yyloc));
  ast::destroy((yyvsp[-2].f1_)); }
     break;
 
   case 4: /* decl: "%option" g_17  */
                                 {
-	#line 226 "src/caio.caio"
+	#line 226 "caio.caio"
                                                  for(auto o:(yyvsp[0].f10_)) switch_option(o);  ast::destroy((yyvsp[0].f10_)); }
     break;
 
   case 5: /* decl: "%using" g_19  */
                         {
-	#line 227 "src/caio.caio"
+	#line 227 "caio.caio"
                                                  for(auto o:(yyvsp[0].f10_)) add_using(o);  ast::destroy((yyvsp[0].f10_)); }
     break;
 
   case 6: /* decl: "%operator" g_23  */
                                 {
-	#line 230 "src/caio.caio"
+	#line 230 "caio.caio"
                                              (yyval.f2_)=ast::decloper((yyvsp[0].f10_),&(yyloc));
  }
     break;
 
   case 7: /* decl: "?id?" "?re?"  */
                         {
-	#line 231 "src/caio.caio"
+	#line 231 "caio.caio"
                                              (yyval.f2_)=ast::declre((yyvsp[-1].f1_),(yyvsp[0].f1_),&(yyloc));
  ast::destroy((yyvsp[-1].f1_)); ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 8: /* decl: "%{" xcode '}'  */
                                 {
-	#line 232 "src/caio.caio"
+	#line 232 "caio.caio"
                                              (yyval.f2_)=ast::declcode(nullptr,(yyvsp[-1].f7_),&(yyloc));
  }
     break;
 
   case 9: /* decl: "%code" "?id?" "%{" xcode '}'  */
                                         {
-	#line 233 "src/caio.caio"
+	#line 233 "caio.caio"
                                              (yyval.f2_)=ast::declcode((yyvsp[-3].f1_),(yyvsp[-1].f7_),&(yyloc));
  }
     break;
@@ -2316,173 +2316,173 @@ yyreduce:
 
   case 11: /* type1: type2 '?'  */
                         {
-	#line 236 "src/caio.caio"
+	#line 236 "caio.caio"
                                              (yyval.f1_)=std::string((yyvsp[-1].f1_)+"?"s);
  ast::destroy((yyvsp[-1].f1_)); }
     break;
 
   case 12: /* type1: type2 '<' type2 '>'  */
                                 {
-	#line 237 "src/caio.caio"
+	#line 237 "caio.caio"
                                              (yyval.f1_)=std::string((yyvsp[-3].f1_)+"<"s+(yyvsp[-1].f1_)+">"s);
  ast::destroy((yyvsp[-3].f1_)); ast::destroy((yyvsp[-1].f1_)); }
     break;
 
   case 13: /* type1: type2 '*'  */
                         {
-	#line 238 "src/caio.caio"
+	#line 238 "caio.caio"
                                              (yyval.f1_)=std::string((yyvsp[-1].f1_)+"*"s);
  ast::destroy((yyvsp[-1].f1_)); }
     break;
 
   case 14: /* type1: type2 '<' type2 '>' '*'  */
                                         {
-	#line 239 "src/caio.caio"
+	#line 239 "caio.caio"
                                              (yyval.f1_)=std::string((yyvsp[-4].f1_)+"<"s+(yyvsp[-2].f1_)+">*"s);
  ast::destroy((yyvsp[-4].f1_)); ast::destroy((yyvsp[-2].f1_)); }
     break;
 
   case 15: /* type2: "?id?"  */
                         {
-	#line 241 "src/caio.caio"
+	#line 241 "caio.caio"
                                              (yyval.f1_)=std::string(((yyvsp[0].f1_)=="string"s)?"std::string"s:(yyvsp[0].f1_));
  ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 16: /* type2: "?id?" ':' ':' "?id?"  */
                                 {
-	#line 242 "src/caio.caio"
+	#line 242 "caio.caio"
                                              (yyval.f1_)=std::string((yyvsp[-3].f1_)+"::"s+(yyvsp[0].f1_));
  ast::destroy((yyvsp[-3].f1_)); ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 17: /* symbol: "?terminal?"  */
                         {
-	#line 244 "src/caio.caio"
+	#line 244 "caio.caio"
                                              (yyval.f9_)=ast::terminal((yyvsp[0].f1_),&(yyloc));
  ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 18: /* symbol: "?id?"  */
                         {
-	#line 245 "src/caio.caio"
+	#line 245 "caio.caio"
                                              (yyval.f9_)=ast::ident((yyvsp[0].f1_),&(yyloc));
  ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 19: /* symbol: "?id?" '(' g_27 ')'  */
                                 {
-	#line 247 "src/caio.caio"
+	#line 247 "caio.caio"
                                              (yyval.f9_)=ast::node((yyvsp[-3].f1_),(yyvsp[-1].f10_),&(yyloc));
  ast::destroy((yyvsp[-3].f1_)); }
     break;
 
   case 20: /* initcode: "%{" xcode '}' '\n'  */
                                         {
-	#line 249 "src/caio.caio"
+	#line 249 "caio.caio"
                                              (yyval.f15_)=ast::lexinit((yyvsp[-2].f7_),&(yyloc));
  }
     break;
 
   case 21: /* lrule: g_31 "?re?" lcode  */
                                 {
-	#line 255 "src/caio.caio"
+	#line 255 "caio.caio"
                                              (yyval.f15_)=ast::lexrule((yyvsp[-2].f10_),(yyvsp[-1].f1_),(yyvsp[0].f23_),&(yyloc));
  ast::destroy((yyvsp[-1].f1_)); }
     break;
 
   case 22: /* term: type2 '(' g_34 ')'  */
                                 {
-	#line 258 "src/caio.caio"
+	#line 258 "caio.caio"
                                              (yyval.f13_)=ast::tnode((yyvsp[-3].f1_),(yyvsp[-1].f10_),&(yyloc));
  ast::destroy((yyvsp[-3].f1_)); }
     break;
 
   case 23: /* term: "?const?"  */
                         {
-	#line 259 "src/caio.caio"
+	#line 259 "caio.caio"
                                              (yyval.f13_)=ast::snode((yyvsp[0].f1_),&(yyloc));
  ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 24: /* term: type2  */
                 {
-	#line 260 "src/caio.caio"
+	#line 260 "caio.caio"
                                              (yyval.f13_)=ast::snode((yyvsp[0].f1_),&(yyloc));
  ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 25: /* term: "?ref?"  */
                         {
-	#line 261 "src/caio.caio"
+	#line 261 "caio.caio"
                                              (yyval.f13_)=ast::snode((yyvsp[0].f1_),&(yyloc));
  ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 26: /* lcode: g_35 g_36  */
                         {
-	#line 263 "src/caio.caio"
+	#line 263 "caio.caio"
                                              (yyval.f23_)=ast::lterm((yyvsp[-1].f12_),(yyvsp[0].f13_),&(yyloc));
  }
     break;
 
   case 27: /* lcode: ';'  */
                 {
-	#line 264 "src/caio.caio"
+	#line 264 "caio.caio"
                                              (yyval.f23_)=ast::lskip(&(yyloc));
  }
     break;
 
   case 28: /* lcode: '|'  */
                 {
-	#line 265 "src/caio.caio"
+	#line 265 "caio.caio"
                                              (yyval.f23_)=ast::lnext(&(yyloc));
  }
     break;
 
   case 29: /* lcode: "%{" xcode '}'  */
                                 {
-	#line 266 "src/caio.caio"
+	#line 266 "caio.caio"
                                              (yyval.f23_)=ast::lcode((yyvsp[-1].f7_),&(yyloc));
  }
     break;
 
   case 30: /* alist: lelem  */
                 {
-	#line 268 "src/caio.caio"
+	#line 268 "caio.caio"
                                                  string s; for(auto x:(yyvsp[0].f10_)) s+=x; (yyval.f1_)=s;  }
     break;
 
   case 31: /* alist: alist lelem  */
                         {
-	#line 269 "src/caio.caio"
+	#line 269 "caio.caio"
                                                  string s; for(auto x:(yyvsp[0].f10_)) s+=x; (yyval.f1_)=(yyvsp[-1].f1_)+s;  }
     break;
 
   case 32: /* grule: "?id?" g_37 erule  */
                                 {
-	#line 272 "src/caio.caio"
+	#line 272 "caio.caio"
                                              (yyval.f5_)=ast::grmrule((yyvsp[-2].f1_),(yyvsp[0].f4_),&(yyloc));
  ast::destroy((yyvsp[-2].f1_)); }
     break;
 
   case 33: /* erule: xrule g_38  */
                         {
-	#line 274 "src/caio.caio"
+	#line 274 "caio.caio"
                                              (yyval.f4_)=ast::cons((yyvsp[-1].f14_),(yyvsp[0].f4_));
  }
     break;
 
   case 34: /* xrule: g_41 rcode  */
                         {
-	#line 276 "src/caio.caio"
+	#line 276 "caio.caio"
                                              (yyval.f14_)=ast::xrule((yyvsp[-1].f16_),(yyvsp[0].f26_),&(yyloc));
  }
     break;
 
   case 35: /* lblelem: "?id?" ':' elem  */
                                 {
-	#line 278 "src/caio.caio"
+	#line 278 "caio.caio"
                                                  (yyval.f3_)=replace_altid((yyvsp[0].f3_),(yyvsp[-2].f1_));  }
     break;
 
@@ -2493,84 +2493,84 @@ yyreduce:
 
   case 37: /* rcode: %empty  */
                 {
-	#line 281 "src/caio.caio"
+	#line 281 "caio.caio"
                                              (yyval.f26_)=ast::gempty(&(yyloc));
  }
     break;
 
   case 38: /* rcode: '<' term '>'  */
                         {
-	#line 282 "src/caio.caio"
+	#line 282 "caio.caio"
                                              (yyval.f26_)=ast::gterm((yyvsp[-1].f13_),&(yyloc));
  }
     break;
 
   case 39: /* rcode: "%{" xcode '}'  */
                                 {
-	#line 283 "src/caio.caio"
+	#line 283 "caio.caio"
                                              (yyval.f26_)=ast::gcode((yyvsp[-1].f7_),&(yyloc));
  }
     break;
 
   case 40: /* elem: "?terminal?"  */
                         {
-	#line 285 "src/caio.caio"
+	#line 285 "caio.caio"
                                              (yyval.f3_)=ast::trmelem((yyvsp[0].f1_),"",&(yyloc));
  ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 41: /* elem: "?id?"  */
                         {
-	#line 286 "src/caio.caio"
+	#line 286 "caio.caio"
                                              (yyval.f3_)=ast::symelem((yyvsp[0].f1_),"",&(yyloc));
  ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 42: /* elem: '(' erule ')'  */
                         {
-	#line 287 "src/caio.caio"
+	#line 287 "caio.caio"
                                              (yyval.f3_)=ast::varelem((yyvsp[-1].f4_),"",&(yyloc));
  }
     break;
 
   case 43: /* elem: '(' erule ')' '*'  */
                                 {
-	#line 288 "src/caio.caio"
+	#line 288 "caio.caio"
                                              (yyval.f3_)=ast::repelem0((yyvsp[-2].f4_),"",&(yyloc));
  }
     break;
 
   case 44: /* elem: '{' erule '}'  */
                         {
-	#line 289 "src/caio.caio"
+	#line 289 "caio.caio"
                                              (yyval.f3_)=ast::repelem0((yyvsp[-1].f4_),"",&(yyloc));
  }
     break;
 
   case 45: /* elem: '(' erule ')' '+'  */
                                 {
-	#line 290 "src/caio.caio"
+	#line 290 "caio.caio"
                                              (yyval.f3_)=ast::repelem1((yyvsp[-2].f4_),"",&(yyloc));
  }
     break;
 
   case 46: /* elem: '{' erule '}' '-'  */
                                 {
-	#line 291 "src/caio.caio"
+	#line 291 "caio.caio"
                                              (yyval.f3_)=ast::repelem1((yyvsp[-2].f4_),"",&(yyloc));
  }
     break;
 
   case 47: /* elem: '(' erule ')' '?'  */
                                 {
-	#line 292 "src/caio.caio"
+	#line 292 "caio.caio"
                                              (yyval.f3_)=ast::optelem((yyvsp[-2].f4_),"",&(yyloc));
  }
     break;
 
   case 48: /* elem: '[' erule ']'  */
                         {
-	#line 293 "src/caio.caio"
+	#line 293 "caio.caio"
                                              (yyval.f3_)=ast::optelem((yyvsp[-1].f4_),"",&(yyloc));
  }
     break;
@@ -2587,147 +2587,147 @@ yyreduce:
 
   case 51: /* xelem: "?lexem?"  */
                         {
-	#line 301 "src/caio.caio"
+	#line 301 "caio.caio"
                                              (yyval.f17_)=ast::lexem((yyvsp[0].f1_),&(yyloc));
  ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 52: /* xelem: "?const?"  */
                         {
-	#line 302 "src/caio.caio"
+	#line 302 "caio.caio"
                                              (yyval.f17_)=ast::lexem((yyvsp[0].f1_),&(yyloc));
  ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 53: /* xelem: "?id?"  */
                         {
-	#line 303 "src/caio.caio"
+	#line 303 "caio.caio"
                                              (yyval.f17_)=ast::lexem((yyvsp[0].f1_),&(yyloc));
  ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 54: /* xelem: ':'  */
                 {
-	#line 304 "src/caio.caio"
+	#line 304 "caio.caio"
                                              (yyval.f17_)=ast::lexem(":"s,&(yyloc));
  }
     break;
 
   case 55: /* xelem: "?ref?"  */
                         {
-	#line 305 "src/caio.caio"
+	#line 305 "caio.caio"
                                              (yyval.f17_)=ast::lexem((yyvsp[0].f1_),&(yyloc));
  ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 56: /* xelem: "?spaces?"  */
                         {
-	#line 306 "src/caio.caio"
+	#line 306 "caio.caio"
                                              (yyval.f17_)=ast::lexem((yyvsp[0].f1_),&(yyloc));
  ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 57: /* xelem: '{' xcode '}'  */
                         {
-	#line 307 "src/caio.caio"
+	#line 307 "caio.caio"
                                              (yyval.f17_)=ast::pcode((yyvsp[-1].f7_),&(yyloc));
  }
     break;
 
   case 58: /* xelem: "match" list '{' g_48 g_53 '}'  */
                                                 {
-	#line 314 "src/caio.caio"
+	#line 314 "caio.caio"
                                              (yyval.f17_)=ast::mcode((yyvsp[-4].f10_),(yyvsp[-1].f18_),&(yyloc));
  }
     break;
 
   case 59: /* xelem: "visitor" "?id?" '<' "?id?" ',' "?id?" '>' '{' xcode g_54 '}'  */
                                                                         {
-	#line 318 "src/caio.caio"
+	#line 318 "caio.caio"
                                              (yyval.f17_)=ast::vcode((yyvsp[-9].f1_),(yyvsp[-7].f1_),(yyvsp[-5].f1_),(yyvsp[-2].f7_),(yyvsp[-1].f20_),&(yyloc));
  ast::destroy((yyvsp[-9].f1_)); ast::destroy((yyvsp[-7].f1_)); ast::destroy((yyvsp[-5].f1_)); }
     break;
 
   case 60: /* xelem: "?terminal?"  */
                         {
-	#line 319 "src/caio.caio"
+	#line 319 "caio.caio"
                                              (yyval.f17_)=ast::token((yyvsp[0].f1_),&(yyloc));
  ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 61: /* mrule: "rule" node ':' ncode  */
                                 {
-	#line 321 "src/caio.caio"
+	#line 321 "caio.caio"
                                              (yyval.f19_)=ast::mrule((yyvsp[-2].f24_),(yyvsp[0].f7_),&(yyloc));
  }
     break;
 
   case 62: /* vrule: "visit" node ':' ncode  */
                                         {
-	#line 323 "src/caio.caio"
+	#line 323 "caio.caio"
                                              (yyval.f21_)=ast::vrule((yyvsp[-2].f24_),(yyvsp[0].f7_),&(yyloc));
  }
     break;
 
   case 63: /* list: lelem g_57  */
                         {
-	#line 326 "src/caio.caio"
+	#line 326 "caio.caio"
                                              (yyval.f10_)=ast::cons((yyvsp[-1].f10_),(yyvsp[0].f10_));
  }
     break;
 
   case 64: /* lelem: "?lexem?"  */
                         {
-	#line 328 "src/caio.caio"
+	#line 328 "caio.caio"
                                              (yyval.f10_)=ast::cons((yyvsp[0].f1_));
  ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 65: /* lelem: "?ref?"  */
                         {
-	#line 329 "src/caio.caio"
+	#line 329 "caio.caio"
                                              (yyval.f10_)=ast::cons((yyvsp[0].f1_));
  ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 66: /* lelem: "?id?"  */
                         {
-	#line 330 "src/caio.caio"
+	#line 330 "caio.caio"
                                              (yyval.f10_)=ast::cons((yyvsp[0].f1_));
  ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 67: /* lelem: "?const?"  */
                         {
-	#line 331 "src/caio.caio"
+	#line 331 "caio.caio"
                                              (yyval.f10_)=ast::cons((yyvsp[0].f1_));
  ast::destroy((yyvsp[0].f1_)); }
     break;
 
   case 68: /* lelem: '(' ')'  */
                         {
-	#line 332 "src/caio.caio"
+	#line 332 "caio.caio"
                                              (yyval.f10_)=ast::cons(cons("("s),")"s);
  }
     break;
 
   case 69: /* lelem: '(' list ')'  */
                         {
-	#line 333 "src/caio.caio"
+	#line 333 "caio.caio"
                                              (yyval.f10_)=ast::cons(cons("("s,(yyvsp[-1].f10_)),")"s);
  }
     break;
 
   case 70: /* node: "?id?" '(' g_61 ')'  */
                                 {
-	#line 336 "src/caio.caio"
+	#line 336 "caio.caio"
                                              (yyval.f24_)=ast::node2((yyvsp[-3].f1_),(yyvsp[-1].f10_),&(yyloc));
  ast::destroy((yyvsp[-3].f1_)); }
     break;
 
   case 71: /* node: "?id?"  */
                         {
-	#line 337 "src/caio.caio"
+	#line 337 "caio.caio"
                                              (yyval.f24_)=ast::node1((yyvsp[0].f1_),&(yyloc));
  ast::destroy((yyvsp[0].f1_)); }
     break;
@@ -2769,7 +2769,7 @@ yyreduce:
 
   case 85: /* g_8: "?%%lex?" g_4 g_6  */
                                 {
-	#line 220 "src/caio.caio"
+	#line 220 "caio.caio"
                                                 (yyval.f22_)=ast::cons((yyvsp[-1].f15_),(yyvsp[0].f22_));
  }
     break;
@@ -2816,7 +2816,7 @@ yyreduce:
 
   case 98: /* g_16: "?id?" '(' g_15 ')'  */
                                 {
-	#line 225 "src/caio.caio"
+	#line 225 "caio.caio"
                                                     (yyval.f1_)=std::string((yyvsp[-3].f1_)+"="s+(yyvsp[-1].f1_));
  ast::destroy((yyvsp[-3].f1_)); ast::destroy((yyvsp[-1].f1_)); }
     break;
@@ -2873,7 +2873,7 @@ yyreduce:
 
   case 109: /* g_24: '<' "?id?" '>' g_21  */
                                 {
-	#line 229 "src/caio.caio"
+	#line 229 "caio.caio"
                                              (yyval.f10_)=ast::cons((yyvsp[-2].f1_),(yyvsp[0].f10_));
  ast::destroy((yyvsp[-2].f1_)); }
     break;
@@ -2900,7 +2900,7 @@ yyreduce:
 
   case 116: /* g_27: type1 g_25  */
                         {
-	#line 246 "src/caio.caio"
+	#line 246 "caio.caio"
                                              (yyval.f10_)=ast::cons((yyvsp[-1].f1_),(yyvsp[0].f10_));
  ast::destroy((yyvsp[-1].f1_)); }
     break;
@@ -2917,14 +2917,14 @@ yyreduce:
 
   case 120: /* g_30: '*'  */
                 {
-	#line 251 "src/caio.caio"
+	#line 251 "caio.caio"
                                              (yyval.f10_)=ast::cons("*"s);
  }
     break;
 
   case 121: /* g_30: "?id?" g_28  */
                         {
-	#line 252 "src/caio.caio"
+	#line 252 "caio.caio"
                                              (yyval.f10_)=ast::cons((yyvsp[-1].f1_),(yyvsp[0].f10_));
  ast::destroy((yyvsp[-1].f1_)); }
     break;
@@ -2946,7 +2946,7 @@ yyreduce:
 
   case 128: /* g_34: alist g_32  */
                         {
-	#line 257 "src/caio.caio"
+	#line 257 "caio.caio"
                                              (yyval.f10_)=ast::cons((yyvsp[-1].f1_),(yyvsp[0].f10_));
  ast::destroy((yyvsp[-1].f1_)); }
     break;
@@ -2988,7 +2988,7 @@ yyreduce:
 
   case 144: /* g_43: "default"  */
                         {
-	#line 296 "src/caio.caio"
+	#line 296 "caio.caio"
                                              (yyval.f17_)=ast::lexem("default"s,&(yyloc));
  }
     break;
@@ -3030,14 +3030,14 @@ yyreduce:
 
   case 158: /* g_52: "default" ':' ncode  */
                                 {
-	#line 311 "src/caio.caio"
+	#line 311 "caio.caio"
                                              (yyval.f19_)=ast::mrule(nullptr,(yyvsp[0].f7_),&(yyloc));
  }
     break;
 
   case 159: /* g_53: g_50 g_52  */
                         {
-	#line 312 "src/caio.caio"
+	#line 312 "caio.caio"
                                              (yyval.f18_)=ast::cons((yyvsp[-1].f18_),(yyvsp[0].f19_));
  }
     break;
@@ -3064,7 +3064,7 @@ yyreduce:
 
   case 164: /* g_56: ','  */
                 {
-	#line 325 "src/caio.caio"
+	#line 325 "caio.caio"
                                              (yyval.f10_)=ast::cons(","s);
  }
     break;
@@ -3091,7 +3091,7 @@ yyreduce:
 
   case 172: /* g_61: "?id?" g_59  */
                         {
-	#line 335 "src/caio.caio"
+	#line 335 "caio.caio"
                                              (yyval.f10_)=ast::cons((yyvsp[-1].f1_),(yyvsp[0].f10_));
  ast::destroy((yyvsp[-1].f1_)); }
     break;

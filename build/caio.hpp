@@ -936,8 +936,9 @@ void yyerror(const std::string &);
 void yyerror(YYLTYPE*, void*, const char*);
 void yyinterpret(Program);
 #define YYINTERPRET(ast,scanner) yyinterpret(ast)
+#define YYONERROR exit(1)
 
-	#line 19 "src/caio.caio"
+	#line 19 "caio.caio"
   
 #include <string>
 #include <iostream>
